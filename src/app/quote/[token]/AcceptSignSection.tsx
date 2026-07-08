@@ -9,13 +9,14 @@ interface Props {
   alreadyAccepted:  boolean
   initialSignerName: string | null
   initialSignedPdfUrl: string | null
+  primaryColor:     string
 }
 
 type Status = 'form' | 'submitting' | 'done' | 'error'
 type Mode   = 'draw' | 'type'
 
 export default function AcceptSignSection({
-  token, businessName, alreadyAccepted, initialSignerName, initialSignedPdfUrl,
+  token, businessName, alreadyAccepted, initialSignerName, initialSignedPdfUrl, primaryColor,
 }: Props) {
   const [status, setStatus]   = useState<Status>(alreadyAccepted ? 'done' : 'form')
   const [error, setError]     = useState<string | null>(null)
@@ -86,7 +87,7 @@ export default function AcceptSignSection({
 
   return (
     <div className="bg-white rounded-2xl border border-border p-5">
-      <h3 className="text-sm font-bold mb-1" style={{ color: '#0F766E' }}>Accept &amp; sign</h3>
+      <h3 className="text-sm font-bold mb-1" style={{ color: primaryColor }}>Accept &amp; sign</h3>
       <p className="text-xs text-muted mb-4">Sign below to accept this quote and its terms.</p>
 
       {/* Draw / type toggle */}
@@ -94,18 +95,16 @@ export default function AcceptSignSection({
         <button
           type="button"
           onClick={() => setMode('draw')}
-          className={`flex-1 h-10 rounded-xl text-sm font-medium transition ${
-            mode === 'draw' ? 'bg-[#0F766E] text-white' : 'border border-border text-muted hover:bg-surface'
-          }`}
+          className={`flex-1 h-10 rounded-xl text-sm font-medium transition ${mode === 'draw' ? 'text-white' : 'border border-border text-muted hover:bg-surface'}`}
+          style={mode === 'draw' ? { backgroundColor: primaryColor } : undefined}
         >
           Draw signature
         </button>
         <button
           type="button"
           onClick={() => setMode('type')}
-          className={`flex-1 h-10 rounded-xl text-sm font-medium transition ${
-            mode === 'type' ? 'bg-[#0F766E] text-white' : 'border border-border text-muted hover:bg-surface'
-          }`}
+          className={`flex-1 h-10 rounded-xl text-sm font-medium transition ${mode === 'type' ? 'text-white' : 'border border-border text-muted hover:bg-surface'}`}
+          style={mode === 'type' ? { backgroundColor: primaryColor } : undefined}
         >
           Type signature
         </button>
@@ -133,7 +132,7 @@ export default function AcceptSignSection({
       ) : (
         nameEntered && (
           <div className="mb-4 rounded-xl border-2 border-dashed border-border bg-surface px-4 py-5 text-center">
-            <p className="text-2xl" style={{ fontFamily: 'cursive', color: '#0F766E' }}>{signerName}</p>
+            <p className="text-2xl" style={{ fontFamily: 'cursive', color: primaryColor }}>{signerName}</p>
             <p className="text-xs text-muted mt-2">This typed name will appear as your signature</p>
           </div>
         )
@@ -164,7 +163,8 @@ export default function AcceptSignSection({
       <button
         onClick={submit}
         disabled={!canSubmit || status === 'submitting'}
-        className="w-full h-13 rounded-2xl bg-[#0F766E] text-white font-semibold text-base hover:opacity-90 active:scale-[0.98] transition disabled:opacity-40 flex items-center justify-center gap-2"
+        className="w-full h-13 rounded-2xl text-white font-semibold text-base hover:opacity-90 active:scale-[0.98] transition disabled:opacity-40 flex items-center justify-center gap-2"
+        style={{ backgroundColor: primaryColor }}
       >
         {status === 'submitting' ? (
           <>

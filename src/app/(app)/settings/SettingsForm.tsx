@@ -2,6 +2,8 @@
 
 import { useState, useRef, type ChangeEvent } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { EMPTY_BRANDING, type Branding } from '@/lib/types'
+import TemplateUploadSection from './TemplateUploadSection'
 
 interface InitialRateCard {
   id:                       string | null
@@ -13,6 +15,8 @@ interface InitialRateCard {
   business_address:         string | null
   business_email:           string | null
   logo_url:                 string | null
+  branding:                 Branding | null
+  template_html:            string | null
 }
 
 interface Props {
@@ -60,6 +64,18 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
   const [vatStr,         setVatStr]       = useState(String(initialRateCard.vat_percent))
   const [termsText,      setTermsText]    = useState(initialRateCard.terms_text ?? '')
 
+  const initialBranding = initialRateCard.branding ?? EMPTY_BRANDING
+  const [primaryColor, setPrimaryColor] = useState(initialBranding.primaryColor || '#0F766E')
+  const [accentColor,  setAccentColor]  = useState(initialBranding.accentColor  || '#4BACC6')
+  const [fontFamily,   setFontFamily]   = useState(initialBranding.fontFamily ?? '')
+  const [phone,        setPhone]        = useState(initialBranding.phone ?? '')
+  const [website,      setWebsite]      = useState(initialBranding.website ?? '')
+  const [kvk,          setKvk]          = useState(initialBranding.kvk ?? '')
+  const [btw,          setBtw]          = useState(initialBranding.btw ?? '')
+  const [iban,         setIban]         = useState(initialBranding.iban ?? '')
+  const [footerText,   setFooterText]   = useState(initialBranding.footerText ?? '')
+  const [quoteNumberPrefix, setQuoteNumberPrefix] = useState(initialBranding.quoteNumberPrefix ?? '')
+
   const [errors, setErrors]           = useState<FieldErrors>({})
   const [logoUploading, setLogoUploading] = useState(false)
   const [saving, setSaving]           = useState(false)
@@ -103,6 +119,19 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
     setSaving(true)
     setSaveError(null)
     try {
+      const branding: Branding = {
+        primaryColor:      primaryColor || null,
+        accentColor:       accentColor || null,
+        fontFamily:        fontFamily.trim() || null,
+        phone:             phone.trim() || null,
+        website:           website.trim() || null,
+        kvk:               kvk.trim() || null,
+        btw:               btw.trim() || null,
+        iban:              iban.trim() || null,
+        footerText:        footerText.trim() || null,
+        quoteNumberPrefix: quoteNumberPrefix.trim() || null,
+      }
+
       const payload = {
         owner_id:                 ownerId,
         business_name:            businessName.trim() || null,
@@ -113,6 +142,7 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
         material_markup_percent: markupPercent,
         vat_percent:              vatPercent,
         terms_text:               termsText.trim() || null,
+        branding,
       }
 
       if (rateCardId) {
@@ -136,6 +166,9 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+
+      {/* ── HTML quote template ───────────────────────────────────── */}
+      <TemplateUploadSection ownerId={ownerId} accent={ACCENT} hasExistingTemplate={!!initialRateCard.template_html} />
 
       {/* ── Business identity ─────────────────────────────────────── */}
       <section className="bg-white rounded-2xl border border-border p-5">
@@ -204,6 +237,99 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
               value={businessEmail}
               onChange={e => setBusinessEmail(e.target.value)}
               placeholder="you@yourcompany.nl"
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      </section>
+
+      {/* ── Branding ─────────────────────────────────────────────────── */}
+      <section className="bg-white rounded-2xl border border-border p-5">
+        <h2 className="text-sm font-bold mb-4" style={{ color: ACCENT }}>Branding</h2>
+
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <Field label="Primary color">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={primaryColor}
+                onChange={e => setPrimaryColor(e.target.value)}
+                className="w-12 h-12 rounded-xl border border-border cursor-pointer shrink-0"
+              />
+              <input
+                type="text"
+                value={primaryColor}
+                onChange={e => setPrimaryColor(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+          </Field>
+          <Field label="Accent color">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={accentColor}
+                onChange={e => setAccentColor(e.target.value)}
+                className="w-12 h-12 rounded-xl border border-border cursor-pointer shrink-0"
+              />
+              <input
+                type="text"
+                value={accentColor}
+                onChange={e => setAccentColor(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+          </Field>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <Field label="Font (web page only — PDFs stay Helvetica)">
+            <select
+              value={fontFamily}
+              onChange={e => setFontFamily(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Default (system font)</option>
+              <option value="Georgia, serif">Georgia (serif)</option>
+              <option value="'Times New Roman', serif">Times New Roman (serif)</option>
+              <option value="Verdana, sans-serif">Verdana (sans-serif)</option>
+              <option value="'Trebuchet MS', sans-serif">Trebuchet MS (sans-serif)</option>
+            </select>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Phone">
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="030 123 4567" className={inputClass} />
+            </Field>
+            <Field label="Website">
+              <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="www.yourcompany.nl" className={inputClass} />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="KvK number">
+              <input type="text" value={kvk} onChange={e => setKvk(e.target.value)} placeholder="87654321" className={inputClass} />
+            </Field>
+            <Field label="BTW number">
+              <input type="text" value={btw} onChange={e => setBtw(e.target.value)} placeholder="NL123456789B01" className={inputClass} />
+            </Field>
+          </div>
+          <Field label="IBAN">
+            <input type="text" value={iban} onChange={e => setIban(e.target.value)} placeholder="NL91ABNA0417164300" className={inputClass} />
+          </Field>
+          <Field label="Footer tagline">
+            <input
+              type="text"
+              value={footerText}
+              onChange={e => setFooterText(e.target.value)}
+              placeholder="e.g. Your Company · City"
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Quote number prefix">
+            <input
+              type="text"
+              value={quoteNumberPrefix}
+              onChange={e => setQuoteNumberPrefix(e.target.value)}
+              placeholder="e.g. 2026-"
               className={inputClass}
             />
           </Field>

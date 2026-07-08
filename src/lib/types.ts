@@ -41,6 +41,30 @@ export interface Client {
   notes:      string | null
 }
 
+/**
+ * Newer brand fields, stored as one JSON column rather than individual
+ * ALTER TABLEs — everything here is optional, since most of it only gets
+ * filled in once a contractor imports or edits their branding.
+ */
+export interface Branding {
+  primaryColor:     string | null  // hex, used for headings/accent bar/total block
+  accentColor:      string | null  // hex, secondary highlight
+  fontFamily:       string | null  // web-page display only — PDFs stay on Helvetica for now
+  phone:            string | null
+  website:          string | null
+  kvk:              string | null
+  btw:              string | null
+  iban:             string | null
+  footerText:       string | null  // short tagline, e.g. "Business Name · City" — distinct from terms_text
+  quoteNumberPrefix: string | null // e.g. "2026-" — stored for future use, not yet applied to numbering
+}
+
+export const EMPTY_BRANDING: Branding = {
+  primaryColor: null, accentColor: null, fontFamily: null,
+  phone: null, website: null, kvk: null, btw: null, iban: null,
+  footerText: null, quoteNumberPrefix: null,
+}
+
 export interface RateCard {
   id:         string
   created_at: string
@@ -56,6 +80,8 @@ export interface RateCard {
   business_address: string | null
   business_email:   string | null
   logo_url:         string | null
+  branding:         Branding | null
+  template_html:    string | null
 }
 
 export type JobStatus = 'draft' | 'quoted' | 'sent' | 'accepted' | 'declined'
@@ -167,4 +193,6 @@ export const DEFAULT_RATE_CARD: Omit<RateCard, 'id' | 'created_at' | 'owner_id'>
   business_address:        null,
   business_email:          null,
   logo_url:                null,
+  branding:                EMPTY_BRANDING,
+  template_html:           null,
 }

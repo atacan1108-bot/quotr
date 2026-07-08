@@ -10,7 +10,7 @@
  */
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer'
 import type { PublicQuoteView } from '@/lib/publicProposal'
-import { euro, fmtDate, pdfStyles as s, TYPE_META } from '@/lib/pdf/shared'
+import { euro, fmtDate, createPdfStyles, DEFAULT_PRIMARY, TYPE_META } from '@/lib/pdf/shared'
 
 interface Props {
   quote:             PublicQuoteView
@@ -22,6 +22,7 @@ interface Props {
 export function SignedQuotePDF({ quote, signerName, signatureDataUrl, signedAt }: Props) {
   const { business, breakdown } = quote
   const businessName = business.name ?? 'Quotr'
+  const s = createPdfStyles(quote.branding.primaryColor || DEFAULT_PRIMARY)
 
   return (
     <Document
@@ -33,6 +34,10 @@ export function SignedQuotePDF({ quote, signerName, signatureDataUrl, signedAt }
 
         {/* ── Header ─────────────────────────────────────────── */}
         <View style={s.header}>
+          {business.logoUrl ? (
+            // eslint-disable-next-line jsx-a11y/alt-text
+            <Image src={business.logoUrl} style={s.logo} />
+          ) : null}
           <View>
             <Text style={s.brandName}>{businessName}</Text>
             {business.address && <Text style={s.brandMeta}>{business.address}</Text>}
@@ -111,10 +116,11 @@ export function SignedQuotePDF({ quote, signerName, signatureDataUrl, signedAt }
           </View>
         </View>
 
-        {/* ── Footer: terms & conditions, small and subtle ───────── */}
-        {quote.termsText && (
+        {/* ── Footer: short branded tagline + terms, small and subtle ── */}
+        {(quote.branding.footerText || quote.termsText) && (
           <View style={s.footer} fixed>
-            <Text style={s.footerTxt}>{quote.termsText}</Text>
+            {quote.branding.footerText && <Text style={s.footerTagline}>{quote.branding.footerText}</Text>}
+            {quote.termsText && <Text style={s.footerTxt}>{quote.termsText}</Text>}
           </View>
         )}
       </Page>

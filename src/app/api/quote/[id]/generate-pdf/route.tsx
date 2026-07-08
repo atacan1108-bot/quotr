@@ -1,10 +1,18 @@
 /**
- * Renders the branded ProposalPDF, uploads it to Supabase Storage, and
+ * Renders the branded proposal PDF, uploads it to Supabase Storage, and
  * saves the resulting public URL onto the proposal's pdf_url column.
  *
  * Unlike /api/quote/[id]/pdf (which streams a fresh PDF straight to the
  * browser for an immediate download), this route persists the PDF so it
  * can be linked to or previewed later — e.g. from the public share page.
+ *
+ * Two rendering paths:
+ *  - rate_cards.template_html set → fill the contractor's own uploaded
+ *    HTML design with real quote data and render it with headless
+ *    Chromium (renderHtmlToPdf).
+ *  - not set (the default/unchanged behavior for every existing
+ *    contractor) → the built-in @react-pdf/renderer ProposalPDF, exactly
+ *    as before.
  */
 import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
@@ -12,6 +20,9 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getQuoteExportData } from '@/lib/quoteData'
 import { ProposalPDF } from '@/app/quotes/[id]/ProposalPDF'
+import { fillTemplate } from '@/lib/htmlTemplate'
+import { buildTemplateData } from '@/lib/pdf/buildTemplateData'
+import { renderHtmlToPdf } from '@/lib/pdf/renderHtmlPdf'
 
 export async function POST(
   _req: Request,
@@ -40,7 +51,13 @@ export async function POST(
 
   let buffer: Buffer
   try {
-    buffer = await renderToBuffer(<ProposalPDF data={data} />)
+    if (data.rateCard.template_html) {
+      const { data: templateData, items } = buildTemplateData(data)
+      const filledHtml = fillTemplate(data.rateCard.template_html, templateData, items)
+      buffer = await renderHtmlToPdf(filledHtml)
+    } else {
+      buffer = await renderToBuffer(<ProposalPDF data={data} />)
+    }
   } catch (err) {
     console.error('generate-pdf: render failed', err)
     return NextResponse.json(

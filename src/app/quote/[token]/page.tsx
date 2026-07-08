@@ -67,20 +67,28 @@ export default async function PublicQuotePage({ params }: { params: Promise<{ to
     />
   }
 
-  const { business, breakdown } = quote
+  const { business, breakdown, branding } = quote
   const businessName = business.name ?? 'This business'
+  const primary = branding.primaryColor || '#0F766E'
+  const pageFont = branding.fontFamily || undefined
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface" style={{ fontFamily: pageFont }}>
       <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}>
 
-        {/* ── Header: business identity, teal accent line ─────── */}
-        <div className="mb-2">
-          <h1 className="text-2xl font-bold text-[#0F766E] mb-1">{businessName}</h1>
-          {business.address && <p className="text-sm text-muted">{business.address}</p>}
-          {business.email   && <p className="text-sm text-muted">{business.email}</p>}
+        {/* ── Header: logo, business identity, brand accent line ─────── */}
+        <div className="flex items-center gap-3 mb-2">
+          {business.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={business.logoUrl} alt="" className="w-12 h-12 rounded-xl object-contain shrink-0" />
+          )}
+          <div>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: primary }}>{businessName}</h1>
+            {business.address && <p className="text-sm text-muted">{business.address}</p>}
+            {business.email   && <p className="text-sm text-muted">{business.email}</p>}
+          </div>
         </div>
-        <div className="h-[3px] bg-[#0F766E] rounded-full mt-4 mb-8" />
+        <div className="h-[3px] rounded-full mt-4 mb-8" style={{ backgroundColor: primary }} />
 
         {/* ── Quote for [client] + date + validity ──────────────── */}
         <h2 className="text-xl font-bold text-on-surface mb-1">
@@ -148,8 +156,8 @@ export default async function PublicQuotePage({ params }: { params: Promise<{ to
           </div>
         </div>
 
-        {/* ── Total, emphasized in teal ────────────────────────────── */}
-        <div className="rounded-2xl px-5 py-4 flex items-center justify-between mb-6" style={{ backgroundColor: '#0F766E' }}>
+        {/* ── Total, emphasized in the contractor's brand color ─────── */}
+        <div className="rounded-2xl px-5 py-4 flex items-center justify-between mb-6" style={{ backgroundColor: primary }}>
           <span className="font-semibold text-white">Total incl. VAT</span>
           <span className="text-2xl font-bold text-white">{formatEuro(breakdown.total)}</span>
         </div>
@@ -168,7 +176,8 @@ export default async function PublicQuotePage({ params }: { params: Promise<{ to
             href={quote.pdfUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full h-13 rounded-2xl border-2 border-[#0F766E] text-[#0F766E] font-semibold text-base hover:bg-teal-100 active:scale-[0.98] transition flex items-center justify-center gap-2 mb-4"
+            className="w-full h-13 rounded-2xl border-2 font-semibold text-base active:scale-[0.98] transition flex items-center justify-center gap-2 mb-4"
+            style={{ borderColor: primary, color: primary }}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -184,9 +193,12 @@ export default async function PublicQuotePage({ params }: { params: Promise<{ to
           alreadyAccepted={Boolean(quote.acceptedAt)}
           initialSignerName={quote.signerName}
           initialSignedPdfUrl={quote.signedPdfUrl}
+          primaryColor={primary}
         />
 
-        <p className="text-center text-xs text-muted mt-8">Sent via Quotr</p>
+        <p className="text-center text-xs text-muted mt-8">
+          {branding.footerText || 'Sent via Quotr'}
+        </p>
       </div>
     </div>
   )

@@ -7,6 +7,7 @@ import { createClient } from './supabase/server'
 import { calculateProposal } from './pricing'
 import type { ProposalBreakdown } from './pricing'
 import type { Job, Client, Proposal, RateCard } from './types'
+import { EMPTY_BRANDING } from './types'
 
 export interface QuoteExportData {
   job: Job & { clients: Client | null }
@@ -22,10 +23,20 @@ export interface QuoteExportData {
     | 'currency'
     | 'logo_url'
     | 'terms_text'
+    | 'branding'
+    | 'template_html'
   >
   /** Full priced breakdown from the pricing engine (per-item + totals). */
   breakdown: ProposalBreakdown
   shareUrl: string
+  /**
+   * Stable per-contractor sequence number for this proposal (1, 2, 3, ...),
+   * counted from proposals.created_at rather than a stored counter column —
+   * there's no quote-numbering system elsewhere in the schema yet, and this
+   * needs no migration and can't drift out of sync. null when there's no
+   * saved proposal yet to number.
+   */
+  quoteSequence: number | null
 }
 
 const DEFAULT_RC = {
@@ -38,6 +49,8 @@ const DEFAULT_RC = {
   business_email:          null,
   logo_url:                null,
   terms_text:              null,
+  branding:                EMPTY_BRANDING,
+  template_html:           null,
 }
 
 export async function getQuoteExportData(
@@ -64,7 +77,7 @@ export async function getQuoteExportData(
       .maybeSingle(),
     supabase
       .from('rate_cards')
-      .select('labour_rate_per_hour, material_markup_percent, vat_percent, currency, business_name, business_address, business_email, logo_url, terms_text')
+      .select('labour_rate_per_hour, material_markup_percent, vat_percent, currency, business_name, business_address, business_email, logo_url, terms_text, branding, template_html')
       .eq('owner_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -86,11 +99,22 @@ export async function getQuoteExportData(
     ? `${baseUrl}/quote/${proposal.share_token}`
     : ''
 
+  let quoteSequence: number | null = null
+  if (proposal) {
+    const { count } = await supabase
+      .from('proposals')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', user.id)
+      .lte('created_at', proposal.created_at)
+    quoteSequence = count ?? 1
+  }
+
   return {
     job:      job       as Job & { clients: Client | null },
     proposal: proposal  as Proposal | null,
     rateCard: rc,
     breakdown,
     shareUrl,
+    quoteSequence,
   }
 }

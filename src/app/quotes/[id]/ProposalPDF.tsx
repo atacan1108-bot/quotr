@@ -9,11 +9,12 @@
 
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer'
 import type { QuoteExportData } from '@/lib/quoteData'
-import { euro, fmtDate, pdfStyles as s, TYPE_META } from '@/lib/pdf/shared'
+import { euro, fmtDate, createPdfStyles, DEFAULT_PRIMARY, TYPE_META } from '@/lib/pdf/shared'
 
 export function ProposalPDF({ data }: { data: QuoteExportData }) {
   const { job, proposal, rateCard, breakdown } = data
   const client = job.clients
+  const s = createPdfStyles(rateCard.branding?.primaryColor || DEFAULT_PRIMARY)
 
   return (
     <Document
@@ -91,10 +92,13 @@ export function ProposalPDF({ data }: { data: QuoteExportData }) {
           </View>
         </View>
 
-        {/* ── Footer: terms & conditions, small and subtle ───────── */}
-        {rateCard.terms_text && (
+        {/* ── Footer: short branded tagline + terms, small and subtle ── */}
+        {(rateCard.branding?.footerText || rateCard.terms_text) && (
           <View style={s.footer} fixed>
-            <Text style={s.footerTxt}>{rateCard.terms_text}</Text>
+            {rateCard.branding?.footerText && (
+              <Text style={s.footerTagline}>{rateCard.branding.footerText}</Text>
+            )}
+            {rateCard.terms_text && <Text style={s.footerTxt}>{rateCard.terms_text}</Text>}
           </View>
         )}
       </Page>

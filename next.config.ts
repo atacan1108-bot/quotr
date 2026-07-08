@@ -1,9 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Prevent webpack from trying to bundle these Node-only packages.
+  // Prevent the bundler from trying to bundle these Node-only packages.
   // @react-pdf/renderer uses canvas/fs internals that must stay in Node.
-  serverExternalPackages: ['@react-pdf/renderer', 'canvas'],
+  // puppeteer-core and @sparticuz/chromium launch a real Chromium binary
+  // (the latter ships a compiled/compressed one) — neither can be bundled.
+  serverExternalPackages: ['@react-pdf/renderer', 'puppeteer-core', '@sparticuz/chromium'],
 };
 
 export default nextConfig;

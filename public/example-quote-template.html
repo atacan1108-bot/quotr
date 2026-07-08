@@ -1,0 +1,117 @@
+<!doctype html>
+<!--
+  Example Quotr quote template — a complete, working starting point.
+  Upload this as-is to see it filled with your real business info, or copy
+  it and change the design freely. Every {{token}} and the LINE_ITEMS
+  region below are the only things Quotr looks for — everything else
+  (colors, fonts, layout, images) is entirely up to you.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { margin: 0; }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #1C1C1E;
+    margin: 0;
+    padding: 48px 52px;
+    font-size: 13px;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 20px;
+    border-bottom: 3px solid #0F766E;
+  }
+  .header img { width: 56px; height: 56px; object-fit: contain; }
+  .header .biz-name { font-size: 20px; font-weight: 700; color: #0F766E; margin: 0; }
+  .header .biz-meta { font-size: 11px; color: #7A7A7D; margin: 2px 0 0; }
+
+  .quote-meta { display: flex; justify-content: space-between; margin-top: 28px; }
+  .quote-meta h1 { font-size: 16px; margin: 0 0 4px; }
+  .quote-meta .to { font-size: 12px; color: #7A7A7D; }
+  .quote-meta .right { text-align: right; font-size: 12px; color: #7A7A7D; }
+
+  .panel { background: #FAFAF9; border-radius: 10px; padding: 14px 16px; margin-top: 20px; }
+  .panel .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #0F766E; margin: 0 0 6px; }
+  .panel p { margin: 0; font-size: 12px; line-height: 1.5; }
+
+  table.items { width: 100%; border-collapse: collapse; margin-top: 24px; }
+  table.items thead th {
+    text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: #7A7A7D; border-bottom: 1px solid #E7E5E0; padding: 0 0 8px;
+  }
+  table.items thead th.amount { text-align: right; }
+  table.items tbody td { padding: 10px 0; border-bottom: 1px solid #E7E5E0; font-size: 12px; }
+  table.items tbody td.amount { text-align: right; font-weight: 600; }
+  table.items tbody td.qty { color: #7A7A7D; font-size: 11px; }
+
+  .totals { margin-top: 16px; margin-left: auto; width: 260px; }
+  .totals .row { display: flex; justify-content: space-between; font-size: 12px; padding: 6px 0; }
+  .totals .grand { display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; color: #0F766E; padding: 10px 0 0; border-top: 2px solid #0F766E; margin-top: 6px; }
+
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #E7E5E0; font-size: 10px; color: #7A7A7D; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <img src="{{business_logo}}" alt="">
+    <div>
+      <p class="biz-name">{{business_name}}</p>
+      <p class="biz-meta">{{business_address}}</p>
+      <p class="biz-meta">{{business_email}} · {{business_phone}} · {{business_website}}</p>
+    </div>
+  </div>
+
+  <div class="quote-meta">
+    <div>
+      <h1>Quote for {{customer_name}}</h1>
+      <p class="to">{{customer_address}}</p>
+    </div>
+    <div class="right">
+      <p><strong>{{quote_number}}</strong></p>
+      <p>{{quote_date}}</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <p class="label">A note from {{business_name}}</p>
+    <p>{{cover_note}}</p>
+  </div>
+
+  <div class="panel">
+    <p class="label">Scope of work</p>
+    <p>{{scope_text}}</p>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr><th>Description</th><th class="amount">Amount</th></tr>
+    </thead>
+    <tbody>
+      <!-- LINE_ITEMS_START -->
+      <tr>
+        <td>{{item_label}}<br><span class="qty">{{item_quantity}}</span></td>
+        <td class="amount">{{item_total}}</td>
+      </tr>
+      <!-- LINE_ITEMS_END -->
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="row"><span>Subtotal</span><span>{{subtotal}}</span></div>
+    <div class="row"><span>VAT ({{vat_percent}}%)</span><span>{{vat_amount}}</span></div>
+    <div class="grand"><span>Total</span><span>{{total}}</span></div>
+  </div>
+
+  <div class="footer">
+    <p>{{footer_text}}</p>
+    <p>{{terms_text}}</p>
+    <p>KvK {{business_kvk}} · BTW {{business_btw}} · IBAN {{business_iban}}</p>
+  </div>
+
+</body>
+</html>

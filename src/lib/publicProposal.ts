@@ -10,6 +10,7 @@
 import { createAdminClient } from './supabase/admin'
 import { calculateProposal } from './pricing'
 import type { ProposalBreakdown } from './pricing'
+import { EMPTY_BRANDING, type Branding } from './types'
 
 /** How many days after creation a quote can still be accepted. Not stored —
  * computed from created_at so there's no schema field to keep in sync. */
@@ -34,7 +35,9 @@ export interface PublicQuoteView {
     name:    string | null
     address: string | null
     email:   string | null
+    logoUrl: string | null
   }
+  branding: Branding
   termsText: string | null
   breakdown: ProposalBreakdown
 }
@@ -47,6 +50,8 @@ const DEFAULT_RC = {
   business_address:        null as string | null,
   business_email:          null as string | null,
   terms_text:              null as string | null,
+  logo_url:                null as string | null,
+  branding:                EMPTY_BRANDING,
 }
 
 /**
@@ -79,7 +84,7 @@ export async function getPublicProposalByToken(token: string): Promise<PublicQuo
 
   const { data: rateCardRow } = await admin
     .from('rate_cards')
-    .select('business_name, business_address, business_email, labour_rate_per_hour, material_markup_percent, vat_percent, terms_text')
+    .select('business_name, business_address, business_email, labour_rate_per_hour, material_markup_percent, vat_percent, terms_text, logo_url, branding')
     .eq('owner_id', proposal.owner_id)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -130,7 +135,9 @@ export async function getPublicProposalByToken(token: string): Promise<PublicQuo
       name:    rateCard.business_name,
       address: rateCard.business_address,
       email:   rateCard.business_email,
+      logoUrl: rateCard.logo_url,
     },
+    branding:  rateCard.branding ?? EMPTY_BRANDING,
     termsText: rateCard.terms_text,
     breakdown,
   }

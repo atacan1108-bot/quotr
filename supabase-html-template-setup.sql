@@ -1,0 +1,30 @@
+-- ================================================================
+-- Quotr — HTML quote template (replaces color/font extraction)
+-- ================================================================
+--
+-- WHERE TO PASTE THIS:
+--   1. Go to https://supabase.com/dashboard
+--   2. Open your project (ojzwlttzdipijllzqqix)
+--   3. Left sidebar → "SQL Editor"
+--   4. Click "New query"
+--   5. Select all text below and paste it in
+--   6. Click the green "Run" button (or press Ctrl+Enter / Cmd+Enter)
+--
+-- What this does:
+--   Adds a "template_html" column to rate_cards, holding the sanitized
+--   HTML of a contractor's uploaded quote template (design + {{tokens}} +
+--   a LINE_ITEMS repeat region). When set, Generate PDF fills this
+--   template with the real quote data and renders it to PDF instead of
+--   the built-in design. When null (nothing uploaded yet), Generate PDF
+--   keeps using the built-in design exactly as before — this column is a
+--   pure addition, nothing is removed or changed for existing contractors.
+--
+--   Reuses the existing private "templates" storage bucket (from
+--   supabase-branding-setup.sql) to hold the original uploaded .html file
+--   for re-editing — RLS on that bucket already restricts it to the
+--   owning contractor.
+--
+-- Pure addition — no data loss. Safe to run more than once.
+-- ================================================================
+
+alter table rate_cards add column if not exists template_html text;

@@ -1,0 +1,156 @@
+/**
+ * Fills a contractor-authored HTML quote template with real quote data.
+ *
+ * Two substitution mechanisms:
+ *  - Scalar tokens: {{token_name}} anywhere in the document, replaced with
+ *    an HTML-escaped string (safe in both text nodes and quoted attributes,
+ *    e.g. src="{{business_logo}}").
+ *  - Line items: a repeating region between the literal HTML comments
+ *    <!-- LINE_ITEMS_START --> and <!-- LINE_ITEMS_END -->. Everything
+ *    between the markers is treated as the row template and repeated once
+ *    per line item, with item_* tokens filled per row.
+ *
+ * All money figures are pre-formatted strings handed in from the pricing
+ * engine's output (via buildTemplateData) — this module never computes or
+ * rounds a number, it only substitutes text. SERVER-ONLY.
+ */
+
+export interface TemplateData {
+  [key: string]:     string
+  business_logo:     string
+  business_name:     string
+  business_address:  string
+  business_email:    string
+  business_phone:    string
+  business_website:  string
+  business_kvk:       string
+  business_btw:       string
+  business_iban:      string
+  customer_name:     string
+  customer_address:  string
+  customer_email:    string
+  customer_phone:    string
+  quote_number:      string
+  quote_date:        string
+  cover_note:        string
+  scope_text:        string
+  subtotal:          string
+  vat_percent:       string
+  vat_amount:        string
+  total:             string
+  terms_text:        string
+  footer_text:       string
+}
+
+export interface TemplateLineItem {
+  [key: string]:    string
+  item_label:       string
+  item_quantity:    string
+  item_unit_price:  string
+  item_total:       string
+}
+
+export const SCALAR_TOKENS = [
+  'business_logo', 'business_name', 'business_address', 'business_email',
+  'business_phone', 'business_website', 'business_kvk', 'business_btw', 'business_iban',
+  'customer_name', 'customer_address', 'customer_email', 'customer_phone',
+  'quote_number', 'quote_date', 'cover_note', 'scope_text',
+  'subtotal', 'vat_percent', 'vat_amount', 'total', 'terms_text', 'footer_text',
+] as const satisfies readonly (keyof TemplateData)[]
+
+export const LINE_ITEM_TOKENS = ['item_label', 'item_quantity', 'item_unit_price', 'item_total'] as const
+
+const LINE_ITEMS_REGION = /<!--\s*LINE_ITEMS_START\s*-->([\s\S]*?)<!--\s*LINE_ITEMS_END\s*-->/
+
+/**
+ * sanitize-html (like most HTML sanitizers) strips comments outright, which
+ * would destroy the LINE_ITEMS_START/END markers. sanitizeTemplateHtml()
+ * uses these to pull the region out into a plain-text placeholder before
+ * sanitizing, then puts real comments back afterwards — safe to call
+ * through sanitization any number of times.
+ */
+const LINE_ITEMS_PLACEHOLDER = 'QUOTR_LINE_ITEMS_PLACEHOLDER_x7f2k9'
+
+export function extractLineItemsRegion(html: string): { outerWithPlaceholder: string; rowTemplate: string } | null {
+  const match = html.match(LINE_ITEMS_REGION)
+  if (!match) return null
+  return {
+    outerWithPlaceholder: html.replace(LINE_ITEMS_REGION, LINE_ITEMS_PLACEHOLDER),
+    rowTemplate: match[1],
+  }
+}
+
+export function reinsertLineItemsRegion(outerWithPlaceholder: string, rowTemplate: string): string {
+  return outerWithPlaceholder.replace(
+    LINE_ITEMS_PLACEHOLDER,
+    () => `<!-- LINE_ITEMS_START -->${rowTemplate}<!-- LINE_ITEMS_END -->`,
+  )
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function replaceTokens(html: string, values: Record<string, string>): string {
+  return html.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, token: string) => {
+    if (!(token in values)) return match // unknown token — leave visible rather than silently vanish
+    return escapeHtml(values[token])
+  })
+}
+
+/**
+ * Fills every scalar token and repeats the line-item region. Returns the
+ * final HTML ready to hand to the PDF renderer. If the template has no
+ * LINE_ITEMS region, scalar tokens still fill in — the caller finds out
+ * about the missing region via validateTemplate() beforehand.
+ */
+export function fillTemplate(templateHtml: string, data: TemplateData, items: TemplateLineItem[]): string {
+  let html = templateHtml.replace(LINE_ITEMS_REGION, (_match, rowTemplate: string) => {
+    return items.map(item => replaceTokens(rowTemplate, item)).join('')
+  })
+  html = replaceTokens(html, data)
+  return html
+}
+
+export interface TemplateValidation {
+  hasLineItemsRegion: boolean
+  missingRequiredTokens: string[] // required tokens never referenced anywhere in the template
+  unknownTokens: string[]         // {{...}} placeholders that don't match any known token
+}
+
+/** Tokens a usable template should reference — everything else is optional. */
+const REQUIRED_TOKENS: readonly string[] = [
+  'business_name', 'customer_name', 'quote_number', 'quote_date', 'total',
+]
+
+export function validateTemplate(templateHtml: string): TemplateValidation {
+  const hasLineItemsRegion = LINE_ITEMS_REGION.test(templateHtml)
+  const regionMatch = templateHtml.match(LINE_ITEMS_REGION)
+  const rowTemplate = regionMatch?.[1] ?? ''
+  const outsideRegion = templateHtml.replace(LINE_ITEMS_REGION, '')
+
+  const allKnown = new Set<string>([...SCALAR_TOKENS, ...LINE_ITEM_TOKENS])
+  const found = new Set<string>()
+  const unknownTokens = new Set<string>()
+
+  for (const [text, tokenSet] of [[outsideRegion, SCALAR_TOKENS] as const, [rowTemplate, LINE_ITEM_TOKENS] as const]) {
+    for (const m of text.matchAll(/\{\{\s*(\w+)\s*\}\}/g)) {
+      const token = m[1]
+      found.add(token)
+      if (!allKnown.has(token) || !tokenSet.includes(token as never)) unknownTokens.add(token)
+    }
+  }
+
+  const missingRequiredTokens = REQUIRED_TOKENS.filter(t => !found.has(t))
+
+  return {
+    hasLineItemsRegion,
+    missingRequiredTokens,
+    unknownTokens: [...unknownTokens],
+  }
+}
