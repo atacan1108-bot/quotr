@@ -1,52 +1,100 @@
 'use client'
 
 /**
- * Landing page for the link in the "forgot password" email. Supabase's
- * hosted verify endpoint redirects here after validating the recovery
- * token, appending session tokens as a URL hash — the browser client
- * (detectSessionInUrl, on by default) picks that up automatically and
- * fires a PASSWORD_RECOVERY auth event once the session is live. No
- * custom /auth/callback route needed, same as this app's existing
- * signup-confirmation flow.
+ * Landing page for the link in the "forgot password" email.
+ *
+ * Supabase can hand this page a working session in three different shapes
+ * depending on how the project's email template is configured, so all
+ * three are handled rather than assumed:
+ *  1. Hash-fragment tokens (#access_token=...&type=recovery) — Supabase's
+ *     classic hosted-verify redirect. Picked up automatically by the
+ *     browser client's detectSessionInUrl, which fires a PASSWORD_RECOVERY
+ *     auth event once it's processed.
+ *  2. ?token_hash=...&type=recovery — Supabase's newer direct-link email
+ *     template format. Verified explicitly here via verifyOtp().
+ *  3. ?code=... — PKCE-style link. Exchanged explicitly via
+ *     exchangeCodeForSession().
+ * If Supabase's own hosted verification failed (expired/used link) before
+ * any of the above ever reaches this page, it appends
+ * ?error_description=... instead — surfaced directly rather than treated
+ * as a timeout.
  */
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 type Phase = 'verifying' | 'ready' | 'invalid' | 'saving' | 'done'
 
-export default function ResetPasswordPage() {
+const ACCENT = '#0F766E'
+
+function ResetPasswordInner() {
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
-  const [phase, setPhase]       = useState<Phase>('verifying')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm]   = useState('')
-  const [error, setError]       = useState<string | null>(null)
+  const [phase, setPhase]               = useState<Phase>('verifying')
+  const [invalidReason, setInvalidReason] = useState<string | null>(null)
+  const [password, setPassword]         = useState('')
+  const [confirm, setConfirm]           = useState('')
+  const [error, setError]               = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setPhase('ready')
+      if (event === 'PASSWORD_RECOVERY' && !cancelled) setPhase('ready')
     })
 
-    // Covers the case where the hash was already processed (and the event
-    // already fired) before this listener attached.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setPhase(p => (p === 'verifying' ? 'ready' : p))
-    })
+    async function establishSession() {
+      // Supabase's own hosted verification can fail (expired/used link)
+      // before ever reaching a session — surfaced directly rather than
+      // left to time out.
+      const errorDescription = searchParams.get('error_description')
+      if (errorDescription) {
+        if (!cancelled) {
+          setInvalidReason(errorDescription.replace(/\+/g, ' '))
+          setPhase('invalid')
+        }
+        return
+      }
 
-    // No session materializes within a few seconds → the link was invalid,
-    // already used, or expired.
+      // Covers the case where the hash was already processed (and the
+      // event already fired) before this listener attached.
+      const { data: { session: existing } } = await supabase.auth.getSession()
+      if (existing) {
+        if (!cancelled) setPhase(p => (p === 'verifying' ? 'ready' : p))
+        return
+      }
+
+      const tokenHash = searchParams.get('token_hash')
+      if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+        if (!cancelled) setPhase(error ? 'invalid' : 'ready')
+        return
+      }
+
+      const code = searchParams.get('code')
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (!cancelled) setPhase(error ? 'invalid' : 'ready')
+        return
+      }
+      // Nothing usable in the URL yet — the hash-based listener above may
+      // still fire; the timeout below covers the case where it never does.
+    }
+    establishSession()
+
     const timeout = setTimeout(() => {
-      setPhase(p => (p === 'verifying' ? 'invalid' : p))
-    }, 4000)
+      if (!cancelled) setPhase(p => (p === 'verifying' ? 'invalid' : p))
+    }, 5000)
 
     return () => {
+      cancelled = true
       subscription.unsubscribe()
       clearTimeout(timeout)
     }
-  }, [supabase])
+  }, [supabase, searchParams])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -69,7 +117,7 @@ export default function ResetPasswordPage() {
     }
 
     setPhase('done')
-    setTimeout(() => router.push('/quotes'), 1500)
+    setTimeout(() => router.push('/login'), 1800)
   }
 
   if (phase === 'verifying') {
@@ -85,9 +133,13 @@ export default function ResetPasswordPage() {
       <Shell>
         <h1 className="text-xl font-semibold text-on-surface mb-2 text-center">Link ongeldig of verlopen</h1>
         <p className="text-sm text-muted mb-6 text-center">
-          Deze resetlink werkt niet meer — vraag een nieuwe aan.
+          {invalidReason || 'Deze resetlink werkt niet meer — vraag een nieuwe aan.'}
         </p>
-        <Link href="/forgot-password" className="inline-flex h-12 px-6 items-center justify-center w-full rounded-xl bg-teal-500 text-white font-semibold text-sm hover:bg-teal-700 transition">
+        <Link
+          href="/forgot-password"
+          className="inline-flex h-12 px-6 items-center justify-center w-full rounded-xl text-white font-semibold text-sm transition"
+          style={{ backgroundColor: ACCENT }}
+        >
           Nieuwe link aanvragen
         </Link>
       </Shell>
@@ -97,7 +149,9 @@ export default function ResetPasswordPage() {
   if (phase === 'done') {
     return (
       <Shell>
-        <p className="text-sm font-medium text-teal-700 text-center">Wachtwoord gewijzigd — je wordt doorgestuurd…</p>
+        <p className="text-sm font-medium text-center" style={{ color: ACCENT }}>
+          Wachtwoord gewijzigd — je kunt nu inloggen. Je wordt doorgestuurd…
+        </p>
       </Shell>
     )
   }
@@ -153,7 +207,8 @@ export default function ResetPasswordPage() {
         <button
           type="submit"
           disabled={phase === 'saving'}
-          className="h-12 w-full rounded-xl bg-teal-500 text-white font-semibold text-sm hover:bg-teal-700 active:bg-teal-700 transition disabled:opacity-60 mt-2"
+          className="h-12 w-full rounded-xl text-white font-semibold text-sm transition disabled:opacity-60 mt-2"
+          style={{ backgroundColor: ACCENT }}
         >
           {phase === 'saving' ? 'Opslaan…' : 'Wachtwoord opslaan'}
         </button>
@@ -162,12 +217,20 @@ export default function ResetPasswordPage() {
   )
 }
 
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<Shell><p className="text-sm text-muted text-center">Link verifiëren…</p></Shell>}>
+      <ResetPasswordInner />
+    </Suspense>
+  )
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-surface flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center mb-10">
-          <div className="w-12 h-12 rounded-xl bg-teal-500 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: ACCENT }}>
             <span className="text-white text-xl font-bold tracking-tight">Q</span>
           </div>
           <span className="ml-3 text-2xl font-semibold text-on-surface tracking-tight">Quotr</span>
