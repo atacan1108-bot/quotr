@@ -1,26 +1,61 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FAFAF9;
+  --foreground: #1C1C1E;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: #FAFAF9;
+  --color-on-surface: #1C1C1E;
+  --color-border: #E5E5E3;
+  --color-muted: #6E7580;
+  --color-teal-100: #D6F2EC;
+  --color-teal-500: #0D9483;
+  --color-teal-700: #0B5A54;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+/*
+  touch-action:manipulation tells iOS to fire click immediately with no 300ms
+  double-tap wait; cursor:pointer covers older iOS onClick dispatch quirks.
+*/
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+/*
+  Tailwind CSS v4's .transition class lists pointer-events, display, overlay,
+  and content-visibility in transition-property.  On iOS Safari, having
+  pointer-events in a transition-property causes the browser to defer touch
+  event dispatch while evaluating the animated value — making every element
+  with class="transition" completely unresponsive to touch.  Desktop Chrome
+  snaps pointer-events to its final value and ignores this, which is why
+  desktop works and mobile does not.
+
+  This override resets .transition to the safe v3-compatible property list
+  that excludes pointer-events and the other iOS-problematic additions.
+*/
+.transition {
+  transition-property:
+    color, background-color, border-color, text-decoration-color,
+    fill, stroke, opacity, box-shadow, transform, translate, scale,
+    rotate, filter, backdrop-filter, -webkit-backdrop-filter;
+}
+
+/* Ensure safe area insets for iPhone notch/home bar */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
