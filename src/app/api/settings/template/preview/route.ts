@@ -14,6 +14,8 @@ import { SAMPLE_TEMPLATE_DATA, SAMPLE_TEMPLATE_ITEMS } from '@/lib/pdf/sampleTem
 
 const MAX_CHARS = 2 * 1024 * 1024
 
+export const maxDuration = 60
+
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -44,7 +46,10 @@ export async function POST(req: Request) {
       headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store' },
     })
   } catch (err) {
-    console.error('template/preview: render failed', err)
-    return NextResponse.json({ error: 'Could not render a preview — please try again.' }, { status: 502 })
+    console.error('template/preview: render failed', { error: err instanceof Error ? err.message : err, stack: err instanceof Error ? err.stack : undefined })
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Could not render a preview — please try again.' },
+      { status: 502 },
+    )
   }
 }

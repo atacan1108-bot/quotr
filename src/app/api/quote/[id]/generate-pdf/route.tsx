@@ -24,6 +24,11 @@ import { fillTemplate } from '@/lib/htmlTemplate'
 import { buildTemplateData } from '@/lib/pdf/buildTemplateData'
 import { renderHtmlToPdf } from '@/lib/pdf/renderHtmlPdf'
 
+// Headless-Chromium cold start + render can take longer than Next.js/Vercel's
+// default function timeout, especially on a cold serverless invocation —
+// this is a Vercel-respected route-segment config, not just documentation.
+export const maxDuration = 60
+
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -49,32 +54,68 @@ export async function POST(
     return NextResponse.json({ error: 'This quote doesn\'t have a saved proposal yet.' }, { status: 400 })
   }
 
+  const logCtx = { proposalId: data.proposal.id, jobId: id, hasTemplate: !!data.rateCard.template_html }
+
   let buffer: Buffer
-  try {
-    if (data.rateCard.template_html) {
+  let fellBack = false
+  let fallbackReason: string | null = null
+
+  if (data.rateCard.template_html) {
+    try {
+      // Stage (d): replace {{tokens}} and expand the line-item region.
       const { data: templateData, items } = buildTemplateData(data)
       const filledHtml = fillTemplate(data.rateCard.template_html, templateData, items)
+      console.log('generate-pdf: filled template HTML', { ...logCtx, filledHtmlLength: filledHtml.length, itemCount: items.length })
+      if (!filledHtml.trim()) {
+        throw new Error('Token replacement produced empty HTML — the uploaded template may be malformed.')
+      }
+
+      // Stage (e): launch headless Chromium and render to PDF.
       buffer = await renderHtmlToPdf(filledHtml)
-    } else {
-      buffer = await renderToBuffer(<ProposalPDF data={data} />)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('generate-pdf: custom template render failed — falling back to built-in design', {
+        ...logCtx,
+        error: message,
+        stack: err instanceof Error ? err.stack : undefined,
+        cause: (err as { cause?: unknown })?.cause,
+      })
+      fellBack = true
+      fallbackReason = message
+
+      try {
+        buffer = await renderToBuffer(<ProposalPDF data={data} />)
+      } catch (fallbackErr) {
+        console.error('generate-pdf: fallback render also failed', { ...logCtx, error: fallbackErr })
+        return NextResponse.json(
+          { error: `Your custom template failed (${message}), and the backup design also failed to render. Please try again.` },
+          { status: 502 },
+        )
+      }
     }
-  } catch (err) {
-    console.error('generate-pdf: render failed', err)
-    return NextResponse.json(
-      { error: 'Could not build the PDF — please try again.' },
-      { status: 502 },
-    )
+  } else {
+    try {
+      // No custom template on file — the original, unchanged built-in design.
+      buffer = await renderToBuffer(<ProposalPDF data={data} />)
+    } catch (err) {
+      console.error('generate-pdf: built-in render failed', { ...logCtx, error: err })
+      return NextResponse.json(
+        { error: `Could not build the PDF: ${err instanceof Error ? err.message : 'unknown rendering error'}` },
+        { status: 502 },
+      )
+    }
   }
 
+  // Stage (f): upload to Supabase Storage and save proposals.pdf_url.
   const path = `${user.id}/${data.proposal.id}.pdf`
   const { error: uploadError } = await supabase.storage
     .from('proposals')
     .upload(path, buffer, { contentType: 'application/pdf', upsert: true })
 
   if (uploadError) {
-    console.error('generate-pdf: upload failed', uploadError)
+    console.error('generate-pdf: upload to storage failed', { ...logCtx, error: uploadError })
     return NextResponse.json(
-      { error: 'Could not save the PDF — please try again.' },
+      { error: `Could not upload the PDF to storage: ${uploadError.message}` },
       { status: 502 },
     )
   }
@@ -88,12 +129,12 @@ export async function POST(
     .eq('id', data.proposal.id)
 
   if (updateError) {
-    console.error('generate-pdf: saving pdf_url failed', updateError)
+    console.error('generate-pdf: saving pdf_url failed', { ...logCtx, error: updateError })
     return NextResponse.json(
-      { error: 'The PDF was created but could not be linked to the quote — please try again.' },
+      { error: `The PDF was created but could not be saved to the quote: ${updateError.message}` },
       { status: 502 },
     )
   }
 
-  return NextResponse.json({ pdfUrl })
+  return NextResponse.json({ pdfUrl, fellBack, fallbackReason })
 }
