@@ -6,13 +6,26 @@ import {
 } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { calculateProposal, itemTotal, formatEuro } from '@/lib/pricing'
-import type { LineItem, ProposalBreakdown } from '@/lib/pricing'
+import { calculateProposal, calculateRecurringProposal, itemTotal, formatEuro } from '@/lib/pricing'
+import type { LineItem, ProposalBreakdown, RecurringContractTerms } from '@/lib/pricing'
+import type { QuoteType, RecurringConfig } from '@/lib/types'
 
 // ─── Prop types ───────────────────────────────────────────────────────────────
 
 interface ClientRow { id: string; name: string; phone: string | null }
-type RateCardSlice = { labour_rate_per_hour: number; material_markup_percent: number; vat_percent: number }
+type RateCardSlice = {
+  labour_rate_per_hour: number
+  material_markup_percent: number
+  vat_percent: number
+  day_rate: number | null
+  hours_per_day: number | null
+  weekend_surcharge_percent: number | null
+  holiday_surcharge_percent: number | null
+  extra_work_hourly_rate: number | null
+  prices_shown_excluding_vat: boolean
+}
+
+const ACCENT = '#0F766E'
 
 interface Props {
   ownerId:         string
@@ -110,6 +123,14 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
   const [saving,    setSaving]    = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // ── Quote type + recurring contract state ─────────────────────
+  const [quoteType, setQuoteType] = useState<QuoteType>('one_off')
+  const [daysPerWeekStr,       setDaysPerWeekStr]       = useState('5')
+  const [weeksPerYearStr,      setWeeksPerYearStr]      = useState('52')
+  const [contractTermStr,      setContractTermStr]      = useState('12')
+  const [noticePeriodStr,      setNoticePeriodStr]      = useState('')
+  const [autoRenewal,          setAutoRenewal]          = useState(false)
+
   // ── Client state ─────────────────────────────────────────────
   const [clientSearch,    setClientSearch]    = useState('')
   const [selectedClient,  setSelectedClient]  = useState<ClientRow | null>(null)
@@ -132,6 +153,26 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
     () => calculateProposal(lineItems, rateCard),
     [lineItems, rateCard],
   )
+
+  // ── Derived: recurring contract terms + live totals ───────────
+  const recurringTerms: RecurringContractTerms = useMemo(() => ({
+    days_per_week:        parseFloat(daysPerWeekStr)  || 0,
+    weeks_per_year:       parseFloat(weeksPerYearStr)  || 0,
+    contract_term_months: parseFloat(contractTermStr)  || 0,
+  }), [daysPerWeekStr, weeksPerYearStr, contractTermStr])
+
+  const recurringBreakdown = useMemo(
+    () => calculateRecurringProposal(recurringTerms, rateCard),
+    [recurringTerms, rateCard],
+  )
+
+  const recurringConfig: RecurringConfig = useMemo(() => ({
+    days_per_week:        recurringTerms.days_per_week,
+    weeks_per_year:       recurringTerms.weeks_per_year,
+    contract_term_months: recurringTerms.contract_term_months,
+    notice_period_months: noticePeriodStr.trim() ? parseFloat(noticePeriodStr) || 0 : null,
+    auto_renewal:         autoRenewal,
+  }), [recurringTerms, noticePeriodStr, autoRenewal])
 
   // ── Sheet preview (total for just the item being entered) ────
   const sheetPreview = useMemo(() => {
@@ -241,11 +282,12 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
 
   // ── Save to Supabase ──────────────────────────────────────────
   async function handleSave() {
-    if (items.length === 0) return
+    if (quoteType === 'one_off' && items.length === 0) return
+    if (quoteType === 'recurring' && !canSaveRecurring) return
     setSaving(true)
     setSaveError(null)
     try {
-      // Resolve client
+      // Resolve client — identical for both quote types
       let clientId: string | null = selectedClient?.id ?? null
 
       if (!selectedClient && clientSearch.trim()) {
@@ -262,30 +304,57 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
         clientId = c.id
       }
 
-      // Insert job
-      const validItems = items.filter(i => i.label.trim())
-      const { data: job, error: je } = await supabase
-        .from('jobs')
-        .insert({
-          owner_id:   ownerId,
-          client_id:  clientId,
-          title:      jobTitle.trim() || 'Untitled job',
-          status:     'draft',
-          line_items: validItems.map(draftToLineItem),
-        })
-        .select('id')
-        .single()
-      if (je) throw je
+      if (quoteType === 'one_off') {
+        // Insert job
+        const validItems = items.filter(i => i.label.trim())
+        const { data: job, error: je } = await supabase
+          .from('jobs')
+          .insert({
+            owner_id:   ownerId,
+            client_id:  clientId,
+            title:      jobTitle.trim() || 'Untitled job',
+            status:     'draft',
+            quote_type: 'one_off',
+            line_items: validItems.map(draftToLineItem),
+          })
+          .select('id')
+          .single()
+        if (je) throw je
 
-      // Insert proposal — store totals without the items array (those live in jobs.line_items)
-      const { items: _items, ...moneyBreakdown } = calculateProposal(validItems.map(draftToLineItem), rateCard)
-      const { error: pe } = await supabase
-        .from('proposals')
-        .insert({ owner_id: ownerId, job_id: job.id, computed_totals: moneyBreakdown })
-      if (pe) throw pe
+        // Insert proposal — store totals without the items array (those live in jobs.line_items)
+        const { items: _items, ...moneyBreakdown } = calculateProposal(validItems.map(draftToLineItem), rateCard)
+        const { error: pe } = await supabase
+          .from('proposals')
+          .insert({ owner_id: ownerId, job_id: job.id, computed_totals: moneyBreakdown })
+        if (pe) throw pe
 
-      router.push(`/quotes/${job.id}`)
-      router.refresh()
+        router.push(`/quotes/${job.id}`)
+        router.refresh()
+      } else {
+        // Recurring: no line items — the contract terms + rate card drive the price.
+        const { data: job, error: je } = await supabase
+          .from('jobs')
+          .insert({
+            owner_id:         ownerId,
+            client_id:        clientId,
+            title:            jobTitle.trim() || 'Untitled contract',
+            status:            'draft',
+            quote_type:        'recurring',
+            line_items:        [],
+            recurring_config:  recurringConfig,
+          })
+          .select('id')
+          .single()
+        if (je) throw je
+
+        const { error: pe } = await supabase
+          .from('proposals')
+          .insert({ owner_id: ownerId, job_id: job.id, computed_totals: recurringBreakdown })
+        if (pe) throw pe
+
+        router.push(`/quotes/${job.id}`)
+        router.refresh()
+      }
     } catch (err) {
       // Supabase returns plain objects {code, message, hint}, not Error instances.
       // Fall through the chain to get the most useful message available.
@@ -299,7 +368,12 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
     }
   }
 
-  const canSave = items.length > 0 && !saving
+  const canSaveRecurring =
+    recurringTerms.days_per_week > 0 &&
+    recurringTerms.weeks_per_year > 0 &&
+    recurringTerms.contract_term_months > 0
+
+  const canSave = !saving && (quoteType === 'one_off' ? items.length > 0 : canSaveRecurring)
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
@@ -339,6 +413,24 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
           placeholder="Job description (e.g. Kitchen reno, solar install…)"
           className="w-full h-13 rounded-2xl border border-border bg-white px-4 py-3 text-base font-medium text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition mb-4"
         />
+
+        {/* ── QUOTE TYPE ──────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {(['one_off', 'recurring'] as const).map(type => (
+            <button
+              key={type}
+              onClick={() => setQuoteType(type)}
+              className="h-12 rounded-2xl text-sm font-semibold border-2 transition active:scale-[0.98]"
+              style={
+                quoteType === type
+                  ? { backgroundColor: ACCENT, borderColor: ACCENT, color: '#fff' }
+                  : { backgroundColor: '#fff', borderColor: 'var(--color-border)', color: 'var(--color-muted)' }
+              }
+            >
+              {type === 'one_off' ? 'One-off job' : 'Recurring contract'}
+            </button>
+          ))}
+        </div>
 
         {/* ── CLIENT ──────────────────────────────────────────── */}
         <section className="bg-white rounded-2xl border border-border mb-4 overflow-hidden">
@@ -428,7 +520,8 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
           )}
         </section>
 
-        {/* ── LINE ITEMS ──────────────────────────────────────── */}
+        {/* ── LINE ITEMS (one-off only — unchanged) ─────────────── */}
+        {quoteType === 'one_off' && (
         <section>
           {items.length > 0 && (
             <div className="flex flex-col gap-2.5 mb-3">
@@ -469,11 +562,130 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
             })}
           </div>
         </section>
+        )}
 
         {/* Rate card note — visible on mobile only */}
+        {quoteType === 'one_off' && (
         <p className="mt-4 text-center text-xs text-muted sm:hidden">
           Labour €{rateCard.labour_rate_per_hour}/hr · Materials +{rateCard.material_markup_percent}% · VAT {rateCard.vat_percent}%
         </p>
+        )}
+
+        {/* ── RECURRING CONTRACT TERMS ───────────────────────── */}
+        {quoteType === 'recurring' && (
+        <section className="bg-white rounded-2xl border border-border mb-4 overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <span className="text-xs font-semibold text-muted uppercase tracking-wide">Contract terms</span>
+          </div>
+          <div className="p-4 flex flex-col gap-3">
+            {(!rateCard.day_rate || !rateCard.hours_per_day) && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <p className="text-xs text-amber-800 leading-snug">
+                  No day rate set yet — go to Settings to set your day rate and hours/day, or the totals below will show €0.
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <RField label="Days / week">
+                <input
+                  type="number" inputMode="decimal" min="0" max="7" step="1"
+                  value={daysPerWeekStr}
+                  onChange={e => setDaysPerWeekStr(e.target.value)}
+                  className={rInput}
+                />
+              </RField>
+              <RField label="Weeks / year">
+                <input
+                  type="number" inputMode="decimal" min="0" max="52" step="1"
+                  value={weeksPerYearStr}
+                  onChange={e => setWeeksPerYearStr(e.target.value)}
+                  className={rInput}
+                />
+              </RField>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <RField label="Contract length (months)">
+                <input
+                  type="number" inputMode="decimal" min="0" step="1"
+                  value={contractTermStr}
+                  onChange={e => setContractTermStr(e.target.value)}
+                  className={rInput}
+                />
+              </RField>
+              <RField label="Notice period (months)">
+                <input
+                  type="number" inputMode="decimal" min="0" step="1"
+                  value={noticePeriodStr}
+                  onChange={e => setNoticePeriodStr(e.target.value)}
+                  placeholder="Optional"
+                  className={rInput}
+                />
+              </RField>
+            </div>
+
+            <button
+              onClick={() => setAutoRenewal(v => !v)}
+              className="flex items-center justify-between h-12 px-4 rounded-xl border border-border bg-surface"
+            >
+              <span className="text-sm font-medium text-on-surface">Auto-renews after term</span>
+              <span
+                className="w-11 h-6 rounded-full relative transition"
+                style={{ backgroundColor: autoRenewal ? ACCENT : 'var(--color-border)' }}
+              >
+                <span
+                  className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                  style={{ transform: autoRenewal ? 'translateX(22px)' : 'translateX(2px)' }}
+                />
+              </span>
+            </button>
+          </div>
+        </section>
+        )}
+
+        {/* ── RECURRING LIVE SUMMARY ─────────────────────────── */}
+        {quoteType === 'recurring' && (
+        <section className="bg-white rounded-2xl border border-border mb-4 overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <span className="text-xs font-semibold text-muted uppercase tracking-wide">Pricing summary</span>
+          </div>
+          <div className="p-4 flex flex-col gap-2.5">
+            <RecurringSummaryRow label="Hourly rate" value={formatEuro(recurringBreakdown.hourly_rate)} />
+            {recurringBreakdown.weekend_surcharge_percent > 0 && (
+              <RecurringSummaryRow
+                label={`Weekend rate (+${recurringBreakdown.weekend_surcharge_percent}%)`}
+                value={formatEuro(recurringBreakdown.weekend_hourly_rate)}
+              />
+            )}
+            {recurringBreakdown.holiday_surcharge_percent > 0 && (
+              <RecurringSummaryRow
+                label={`Holiday rate (+${recurringBreakdown.holiday_surcharge_percent}%)`}
+                value={formatEuro(recurringBreakdown.holiday_hourly_rate)}
+              />
+            )}
+            <div className="h-px bg-border my-1" />
+            <RecurringSummaryRow
+              label="Per week"
+              value={formatEuro(rateCard.prices_shown_excluding_vat ? recurringBreakdown.per_week.ex_vat : recurringBreakdown.per_week.incl_vat)}
+            />
+            <RecurringSummaryRow
+              label="Per month"
+              value={formatEuro(rateCard.prices_shown_excluding_vat ? recurringBreakdown.per_month.ex_vat : recurringBreakdown.per_month.incl_vat)}
+            />
+            <RecurringSummaryRow
+              label="Per year"
+              value={formatEuro(rateCard.prices_shown_excluding_vat ? recurringBreakdown.per_year.ex_vat : recurringBreakdown.per_year.incl_vat)}
+            />
+            <p className="text-[11px] text-muted text-right -mt-1">
+              {rateCard.prices_shown_excluding_vat ? 'excl. VAT' : 'incl. VAT'}
+            </p>
+          </div>
+        </section>
+        )}
 
       </div>
 
@@ -495,6 +707,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
           )}
 
           {/* Breakdown rows */}
+          {quoteType === 'one_off' ? (
           <div className="flex flex-col gap-0.5 mb-3">
             {totals.labour_total   > 0 && <TotalRow label="Labour"    value={totals.labour_total}   />}
             {totals.material_total > 0 && <TotalRow label="Materials" value={totals.material_total} />}
@@ -512,16 +725,46 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
               </>
             )}
           </div>
+          ) : (
+          <div className="flex flex-col gap-0.5 mb-3">
+            {canSaveRecurring && (
+              <>
+                <div className="flex justify-between text-xs text-muted">
+                  <span>Per month</span>
+                  <span>{formatEuro(recurringBreakdown.per_month.incl_vat)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-muted">
+                  <span>Over {recurringBreakdown.contract_term_months}-month term</span>
+                  <span>{formatEuro(recurringBreakdown.contract_total.incl_vat)}</span>
+                </div>
+              </>
+            )}
+          </div>
+          )}
 
           <div className="flex items-center gap-3">
             {/* Grand total */}
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-medium text-muted block">Total incl. VAT</span>
-              <span className={`text-2xl font-bold leading-tight ${items.length > 0 ? 'text-teal-500' : 'text-muted'}`}>
-                {formatEuro(totals.total)}
-              </span>
-              {items.length === 0 && (
-                <span className="text-xs text-muted block">Add items above first</span>
+              {quoteType === 'one_off' ? (
+                <>
+                  <span className="text-xs font-medium text-muted block">Total incl. VAT</span>
+                  <span className={`text-2xl font-bold leading-tight ${items.length > 0 ? 'text-teal-500' : 'text-muted'}`}>
+                    {formatEuro(totals.total)}
+                  </span>
+                  {items.length === 0 && (
+                    <span className="text-xs text-muted block">Add items above first</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="text-xs font-medium text-muted block">Contract total incl. VAT</span>
+                  <span className={`text-2xl font-bold leading-tight ${canSaveRecurring ? 'text-teal-500' : 'text-muted'}`}>
+                    {formatEuro(recurringBreakdown.contract_total.incl_vat)}
+                  </span>
+                  {!canSaveRecurring && (
+                    <span className="text-xs text-muted block">Fill in the contract terms above</span>
+                  )}
+                </>
               )}
             </div>
 
@@ -618,6 +861,28 @@ function TotalRow({ label, value }: { label: string; value: number }) {
     <div className="flex justify-between text-xs text-muted">
       <span>{label}</span>
       <span>{formatEuro(value)}</span>
+    </div>
+  )
+}
+
+// ─── Recurring contract UI helpers ───────────────────────────────────────────
+
+const rInput = 'w-full h-12 rounded-xl border border-border bg-white px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition'
+
+function RField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function RecurringSummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between items-center text-sm">
+      <span className="text-muted">{label}</span>
+      <span className="font-semibold text-on-surface">{value}</span>
     </div>
   )
 }

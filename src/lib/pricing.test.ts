@@ -9,7 +9,7 @@
  * A "FAIL ✗" line means something is wrong and shows what we got vs expected.
  */
 
-import { calculateProposal } from './pricing.js'
+import { calculateProposal, calculateRecurringProposal } from './pricing.js'
 import type { LineItem } from './pricing.js'
 
 // ─── Minimal test harness (no framework needed) ──────────────────────────────
@@ -190,6 +190,112 @@ const t6 = calculateProposal(
 // quantity undefined → safeNum defaults to 0 → 0 hours × any rate = €0
 // vat on €0 = €0, total = €0
 test('missing quantity → 0 hours → total = 0', () => expect(t6.total, 0, 'bad input total'))
+
+// ── Test 7: Recurring — the worked example from the spec ─────────────────────
+//
+// Day rate €255 over 5 hours/day.
+//   hourly_rate         = 255 / 5           = €51,00
+//   weekend_hourly_rate = 51,00 × (1 + 50%) = €76,50
+//
+console.log('\nTest 7 — Recurring: worked example (€255/day, 5h/day, +50% weekend)')
+
+const t7 = calculateRecurringProposal(
+  { days_per_week: 5, weeks_per_year: 52, contract_term_months: 12 },
+  {
+    day_rate: 255, hours_per_day: 5,
+    weekend_surcharge_percent: 50, holiday_surcharge_percent: 0, extra_work_hourly_rate: 0,
+    vat_percent: 21, prices_shown_excluding_vat: true,
+  },
+)
+
+test('hourly_rate = 51,00',         () => expect(t7.hourly_rate,         51.00, 'hourly rate'))
+test('weekend_hourly_rate = 76,50', () => expect(t7.weekend_hourly_rate, 76.50, 'weekend hourly rate'))
+
+// ── Test 8: Recurring — full contract: week/month/year/term + VAT ────────────
+//
+// Same day rate, 5 days/week, 52 weeks/year, 12-month contract, 25% holiday
+// surcharge, €60/hr for extra work, 21% VAT.
+//
+//   per week (ex VAT):  €255 × 5 days              = €1.275,00
+//   per year (ex VAT):  €1.275 × 52 weeks           = €66.300,00
+//   per month (ex VAT): €66.300 / 12                = €5.525,00
+//   contract total:     €5.525 × 12 months          = €66.300,00
+//   holiday_hourly_rate: €51,00 × 1,25              = €63,75
+//
+//   VAT on month:  €5.525 × 21%                     = €1.160,25
+//   incl-VAT month: €5.525 + €1.160,25               = €6.685,25
+//   VAT on contract total: €66.300 × 21%             = €13.923,00
+//   incl-VAT contract total: €66.300 + €13.923       = €80.223,00
+//
+console.log('\nTest 8 — Recurring: full contract totals + VAT')
+
+const t8 = calculateRecurringProposal(
+  { days_per_week: 5, weeks_per_year: 52, contract_term_months: 12 },
+  {
+    day_rate: 255, hours_per_day: 5,
+    weekend_surcharge_percent: 50, holiday_surcharge_percent: 25, extra_work_hourly_rate: 60,
+    vat_percent: 21, prices_shown_excluding_vat: true,
+  },
+)
+
+test('holiday_hourly_rate = 63,75',        () => expect(t8.holiday_hourly_rate,        63.75,  'holiday hourly'))
+test('hours_per_week = 25',                () => expect(t8.hours_per_week,              25,    'hours/week'))
+test('per_week ex VAT = 1.275,00',         () => expect(t8.per_week.ex_vat,           1275.00, 'week ex vat'))
+test('per_year ex VAT = 66.300,00',        () => expect(t8.per_year.ex_vat,          66300.00, 'year ex vat'))
+test('per_month ex VAT = 5.525,00',        () => expect(t8.per_month.ex_vat,          5525.00, 'month ex vat'))
+test('contract_total ex VAT = 66.300,00',  () => expect(t8.contract_total.ex_vat,    66300.00, 'contract ex vat'))
+test('per_month VAT = 1.160,25',           () => expect(t8.per_month.vat_amount,      1160.25, 'month vat'))
+test('per_month incl VAT = 6.685,25',      () => expect(t8.per_month.incl_vat,        6685.25, 'month incl vat'))
+test('contract_total VAT = 13.923,00',     () => expect(t8.contract_total.vat_amount,13923.00, 'contract vat'))
+test('contract_total incl VAT = 80.223,00',() => expect(t8.contract_total.incl_vat,  80223.00, 'contract incl vat'))
+
+// ── Test 9: Recurring — rounding consistency ──────────────────────────────────
+//
+// Chosen so yearly ÷ 12 does NOT divide evenly, to prove the rule is
+// "round the invoiced monthly amount, then × the term" — not "compute the
+// term total from an unrounded fraction". This is intentional: a real
+// contract invoices a fixed rounded amount every month.
+//
+//   per_year (ex VAT):  €100 × 1 day × 53 weeks   = €5.300,00
+//   per_month (ex VAT): round(€5.300,00 / 12)     = €441,67
+//   contract_total:     €441,67 × 12              = €5.300,04  (4 cents more than per_year — expected)
+//
+console.log('\nTest 9 — Recurring: rounding stays exact and consistent, never drifts silently')
+
+const t9 = calculateRecurringProposal(
+  { days_per_week: 1, weeks_per_year: 53, contract_term_months: 12 },
+  {
+    day_rate: 100, hours_per_day: 8,
+    weekend_surcharge_percent: 0, holiday_surcharge_percent: 0, extra_work_hourly_rate: 0,
+    vat_percent: 21, prices_shown_excluding_vat: false,
+  },
+)
+
+test('per_year ex VAT = 5.300,00',          () => expect(t9.per_year.ex_vat,        5300.00, 'year ex vat'))
+test('per_month ex VAT = 441,67 (rounded)', () => expect(t9.per_month.ex_vat,        441.67, 'month rounded'))
+test('contract_total = 5.300,04',           () => expect(t9.contract_total.ex_vat,  5300.04, 'contract total'))
+
+// ── Test 10: Recurring — graceful zeros on missing/incomplete contract fields ─
+//
+// A contract being drafted with nothing filled in yet must never throw or
+// return NaN — everything should come back as a clean zero.
+//
+console.log('\nTest 10 — Recurring: missing fields never throw, always zero')
+
+const t10 = calculateRecurringProposal(
+  { days_per_week: 0, weeks_per_year: 0, contract_term_months: 0 },
+  {
+    day_rate: null, hours_per_day: null,
+    weekend_surcharge_percent: null, holiday_surcharge_percent: null, extra_work_hourly_rate: null,
+    vat_percent: 21, prices_shown_excluding_vat: false,
+  },
+)
+
+test('hourly_rate = 0 (no divide-by-zero)', () => expect(t10.hourly_rate,           0, 'hourly rate zero'))
+test('weekend_hourly_rate = 0',              () => expect(t10.weekend_hourly_rate,   0, 'weekend zero'))
+test('per_week ex VAT = 0',                  () => expect(t10.per_week.ex_vat,       0, 'week zero'))
+test('per_month ex VAT = 0',                 () => expect(t10.per_month.ex_vat,      0, 'month zero'))
+test('contract_total incl VAT = 0',          () => expect(t10.contract_total.incl_vat, 0, 'contract zero'))
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
 

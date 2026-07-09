@@ -199,6 +199,135 @@ export function calculateProposal(
   }
 }
 
+// ─── Recurring service-contract engine ───────────────────────────────────────
+//
+// A second, independent pricing mode for day-rate contracts (e.g. a cleaning
+// crew on site X days/week). Shares this file's cents-based rounding
+// discipline and helpers, but never touches calculateProposal's inputs,
+// outputs, or behavior above — one-off quotes are completely unaffected.
+
+/** Recurring pricing defaults — lives on the rate card, see RateCard in types.ts. */
+type RecurringRateCard = Pick<
+  RateCard,
+  | 'day_rate'
+  | 'hours_per_day'
+  | 'weekend_surcharge_percent'
+  | 'holiday_surcharge_percent'
+  | 'extra_work_hourly_rate'
+  | 'vat_percent'
+  | 'prices_shown_excluding_vat'
+>
+
+/** Per-quote contract facts — lives on jobs.recurring_config, see RecurringConfig in types.ts. */
+export interface RecurringContractTerms {
+  days_per_week:        number
+  weeks_per_year:       number
+  contract_term_months: number
+}
+
+/** One period's money, always computed both ways — prices_shown_excluding_vat only affects display. */
+export interface RecurringPeriodAmount {
+  ex_vat:     number
+  vat_amount: number
+  incl_vat:   number
+}
+
+export interface RecurringBreakdown {
+  day_rate:                  number
+  hours_per_day:             number
+  hourly_rate:               number  // day_rate / hours_per_day
+  weekend_surcharge_percent: number
+  weekend_hourly_rate:       number  // hourly_rate increased by weekend_surcharge_percent
+  holiday_surcharge_percent: number
+  holiday_hourly_rate:       number  // hourly_rate increased by holiday_surcharge_percent
+  extra_work_hourly_rate:    number
+  days_per_week:             number
+  weeks_per_year:            number
+  hours_per_week:            number
+  contract_term_months:      number
+  vat_percent:                number
+  prices_shown_excluding_vat: boolean
+  per_week:       RecurringPeriodAmount
+  per_month:      RecurringPeriodAmount
+  per_year:       RecurringPeriodAmount
+  contract_total: RecurringPeriodAmount
+}
+
+/**
+ * calculateRecurringProposal — the recurring-contract counterpart to
+ * calculateProposal. 100% deterministic: no AI, no invented numbers, same
+ * integer-cents rounding discipline as the rest of this file.
+ *
+ * Money flows from day_rate directly (day_rate × days_per_week × weeks_per_year,
+ * then ÷12 for a monthly figure) rather than through the rounded hourly_rate —
+ * hourly/weekend/holiday rates below are accurate reference figures (e.g. for
+ * billing one-off extra work), not the basis for the contract total, so
+ * rounding a display rate never drifts the actual contract price.
+ *
+ * contract_total = monthly (rounded) × contract_term_months, matching how a
+ * real contract is actually invoiced: a fixed amount every month for the term.
+ *
+ * Missing/zero inputs (e.g. a contract being drafted with fields not filled
+ * in yet) produce zeroed-out results rather than throwing or returning NaN.
+ */
+export function calculateRecurringProposal(
+  terms:    RecurringContractTerms,
+  rateCard: RecurringRateCard,
+): RecurringBreakdown {
+  const dayRateCents   = toCents(safeNum(rateCard.day_rate, 0))
+  const hoursPerDay    = safeNum(rateCard.hours_per_day, 0)
+  const weekendPercent = safeNum(rateCard.weekend_surcharge_percent, 0)
+  const holidayPercent = safeNum(rateCard.holiday_surcharge_percent, 0)
+  const extraWorkCents = toCents(safeNum(rateCard.extra_work_hourly_rate, 0))
+  const vatPercent     = safeNum(rateCard.vat_percent, 0)
+  const exVatDisplay   = !!rateCard.prices_shown_excluding_vat
+
+  const daysPerWeek        = safeNum(terms.days_per_week, 0)
+  const weeksPerYear       = safeNum(terms.weeks_per_year, 0)
+  const contractTermMonths = safeNum(terms.contract_term_months, 0)
+
+  // Derived hourly rates — display/reference only, see doc comment above.
+  const hourlyRateCents = hoursPerDay > 0 ? Math.round(dayRateCents / hoursPerDay) : 0
+  const weekendHourlyCents = Math.round(hourlyRateCents * (100 + weekendPercent) / 100)
+  const holidayHourlyCents = Math.round(hourlyRateCents * (100 + holidayPercent) / 100)
+
+  // Contract money — driven by day_rate directly, not the rounded hourly rate.
+  const weeklyCents  = Math.round(dayRateCents * daysPerWeek)
+  const yearlyCents  = Math.round(weeklyCents * weeksPerYear)
+  const monthlyCents = weeksPerYear > 0 ? Math.round(yearlyCents / 12) : 0
+  const contractTotalCents = Math.round(monthlyCents * contractTermMonths)
+
+  function periodAmount(cents: number): RecurringPeriodAmount {
+    const vatCents = Math.round(cents * vatPercent / 100)
+    return {
+      ex_vat:     fromCents(cents),
+      vat_amount: fromCents(vatCents),
+      incl_vat:   fromCents(cents + vatCents),
+    }
+  }
+
+  return {
+    day_rate:                  fromCents(dayRateCents),
+    hours_per_day:             hoursPerDay,
+    hourly_rate:               fromCents(hourlyRateCents),
+    weekend_surcharge_percent: weekendPercent,
+    weekend_hourly_rate:       fromCents(weekendHourlyCents),
+    holiday_surcharge_percent: holidayPercent,
+    holiday_hourly_rate:       fromCents(holidayHourlyCents),
+    extra_work_hourly_rate:    fromCents(extraWorkCents),
+    days_per_week:             daysPerWeek,
+    weeks_per_year:            weeksPerYear,
+    hours_per_week:            hoursPerDay * daysPerWeek,
+    contract_term_months:      contractTermMonths,
+    vat_percent:                vatPercent,
+    prices_shown_excluding_vat: exVatDisplay,
+    per_week:       periodAmount(weeklyCents),
+    per_month:      periodAmount(monthlyCents),
+    per_year:       periodAmount(yearlyCents),
+    contract_total: periodAmount(contractTotalCents),
+  }
+}
+
 // ─── Convenience helpers (exported for use in the UI) ────────────────────────
 
 /**

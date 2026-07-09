@@ -82,9 +82,32 @@ export interface RateCard {
   logo_url:         string | null
   branding:         Branding | null
   template_html:    string | null
+
+  // Recurring service-contract pricing defaults — all optional, null until
+  // set in Settings. One-off pricing above is completely unaffected by these.
+  day_rate:                    number | null
+  hours_per_day:               number | null
+  weekend_surcharge_percent:   number | null
+  holiday_surcharge_percent:   number | null
+  extra_work_hourly_rate:      number | null
+  prices_shown_excluding_vat:  boolean
 }
 
 export type JobStatus = 'draft' | 'quoted' | 'sent' | 'accepted' | 'declined'
+
+export type QuoteType = 'one_off' | 'recurring'
+
+/**
+ * Per-quote contract facts for a 'recurring' job — day_rate/hours_per_day
+ * come from the rate card (see RateCard above), not stored per-job.
+ */
+export interface RecurringConfig {
+  days_per_week:         number
+  weeks_per_year:        number
+  contract_term_months:  number
+  notice_period_months:  number | null
+  auto_renewal:          boolean
+}
 
 export interface Job {
   id:          string
@@ -96,6 +119,8 @@ export interface Job {
   description: string | null
   status:      JobStatus
   line_items:  LineItem[]
+  quote_type:       QuoteType
+  recurring_config: RecurringConfig | null
 }
 
 export interface Proposal {
@@ -195,4 +220,18 @@ export const DEFAULT_RATE_CARD: Omit<RateCard, 'id' | 'created_at' | 'owner_id'>
   logo_url:                null,
   branding:                EMPTY_BRANDING,
   template_html:           null,
+  day_rate:                   null,
+  hours_per_day:              null,
+  weekend_surcharge_percent:  null,
+  holiday_surcharge_percent:  null,
+  extra_work_hourly_rate:     null,
+  prices_shown_excluding_vat: false,
+}
+
+export const DEFAULT_RECURRING_CONFIG: RecurringConfig = {
+  days_per_week:        5,
+  weeks_per_year:        52,
+  contract_term_months:  12,
+  notice_period_months:  null,
+  auto_renewal:           false,
 }

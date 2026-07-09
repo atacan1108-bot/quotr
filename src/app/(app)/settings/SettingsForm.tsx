@@ -17,6 +17,12 @@ interface InitialRateCard {
   logo_url:                 string | null
   branding:                 Branding | null
   template_html:            string | null
+  day_rate:                    number | null
+  hours_per_day:               number | null
+  weekend_surcharge_percent:   number | null
+  holiday_surcharge_percent:   number | null
+  extra_work_hourly_rate:      number | null
+  prices_shown_excluding_vat:  boolean
 }
 
 interface Props {
@@ -63,6 +69,14 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
   const [markupStr,     setMarkupStr]     = useState(String(initialRateCard.material_markup_percent))
   const [vatStr,         setVatStr]       = useState(String(initialRateCard.vat_percent))
   const [termsText,      setTermsText]    = useState(initialRateCard.terms_text ?? '')
+
+  // ── Recurring contract pricing defaults ────────────────────────
+  const [dayRateStr,        setDayRateStr]        = useState(initialRateCard.day_rate?.toString() ?? '')
+  const [hoursPerDayStr,    setHoursPerDayStr]    = useState(initialRateCard.hours_per_day?.toString() ?? '')
+  const [weekendPctStr,     setWeekendPctStr]     = useState(initialRateCard.weekend_surcharge_percent?.toString() ?? '')
+  const [holidayPctStr,     setHolidayPctStr]     = useState(initialRateCard.holiday_surcharge_percent?.toString() ?? '')
+  const [extraWorkRateStr,  setExtraWorkRateStr]  = useState(initialRateCard.extra_work_hourly_rate?.toString() ?? '')
+  const [pricesExVat,       setPricesExVat]       = useState(initialRateCard.prices_shown_excluding_vat)
 
   const initialBranding = initialRateCard.branding ?? EMPTY_BRANDING
   const [primaryColor, setPrimaryColor] = useState(initialBranding.primaryColor || '#0F766E')
@@ -143,6 +157,12 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
         vat_percent:              vatPercent,
         terms_text:               termsText.trim() || null,
         branding,
+        day_rate:                   dayRateStr.trim()       ? parseFloat(dayRateStr)       : null,
+        hours_per_day:              hoursPerDayStr.trim()   ? parseFloat(hoursPerDayStr)   : null,
+        weekend_surcharge_percent:  weekendPctStr.trim()    ? parseFloat(weekendPctStr)    : null,
+        holiday_surcharge_percent:  holidayPctStr.trim()    ? parseFloat(holidayPctStr)    : null,
+        extra_work_hourly_rate:     extraWorkRateStr.trim() ? parseFloat(extraWorkRateStr) : null,
+        prices_shown_excluding_vat: pricesExVat,
       }
 
       if (rateCardId) {
@@ -374,6 +394,80 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
               className={inputClass}
             />
           </Field>
+        </div>
+      </section>
+
+      {/* ── Recurring contract pricing ──────────────────────────────────── */}
+      <section className="bg-white rounded-2xl border border-border p-5">
+        <h2 className="text-sm font-bold mb-1" style={{ color: ACCENT }}>Recurring contract pricing</h2>
+        <p className="text-xs text-muted mb-4">Used for day-rate service contracts (e.g. a cleaning crew on site X days/week) — separate from one-off job pricing above.</p>
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Day rate (€)">
+              <input
+                type="number" inputMode="decimal" min="0" step="0.01"
+                value={dayRateStr}
+                onChange={e => setDayRateStr(e.target.value)}
+                placeholder="e.g. 255"
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Hours / day">
+              <input
+                type="number" inputMode="decimal" min="0" step="0.5"
+                value={hoursPerDayStr}
+                onChange={e => setHoursPerDayStr(e.target.value)}
+                placeholder="e.g. 5"
+                className={inputClass}
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Weekend surcharge (%)">
+              <input
+                type="number" inputMode="decimal" min="0" step="1"
+                value={weekendPctStr}
+                onChange={e => setWeekendPctStr(e.target.value)}
+                placeholder="e.g. 50"
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Holiday surcharge (%)">
+              <input
+                type="number" inputMode="decimal" min="0" step="1"
+                value={holidayPctStr}
+                onChange={e => setHolidayPctStr(e.target.value)}
+                placeholder="e.g. 25"
+                className={inputClass}
+              />
+            </Field>
+          </div>
+          <Field label="Extra work — hourly rate (€)">
+            <input
+              type="number" inputMode="decimal" min="0" step="0.01"
+              value={extraWorkRateStr}
+              onChange={e => setExtraWorkRateStr(e.target.value)}
+              placeholder="e.g. 60"
+              className={inputClass}
+            />
+          </Field>
+
+          <button
+            type="button"
+            onClick={() => setPricesExVat(v => !v)}
+            className="flex items-center justify-between h-12 px-3.5 rounded-xl border border-border bg-surface mt-1"
+          >
+            <span className="text-sm font-medium text-on-surface text-left">Show recurring prices excluding VAT<br /><span className="text-xs text-muted font-normal">Common for B2B contracts</span></span>
+            <span
+              className="w-11 h-6 rounded-full relative transition shrink-0 ml-3"
+              style={{ backgroundColor: pricesExVat ? ACCENT : 'var(--color-border)' }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                style={{ transform: pricesExVat ? 'translateX(22px)' : 'translateX(2px)' }}
+              />
+            </span>
+          </button>
         </div>
       </section>
 
