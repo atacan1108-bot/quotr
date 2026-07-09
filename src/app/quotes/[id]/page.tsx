@@ -175,7 +175,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             proposalId={proposal.id}
             jobTitle={job.title}
             clientName={client?.name ?? null}
+            quoteType={(job as Job).quote_type}
             lineItems={(job as Job).line_items}
+            recurringConfig={(job as Job).recurring_config}
             initialScopeText={(proposal as Proposal).scope_text}
             initialCoverNote={(proposal as Proposal).cover_note}
           />

@@ -2,13 +2,15 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Job } from '@/lib/types'
+import type { Job, QuoteType, RecurringConfig } from '@/lib/types'
 
 interface Props {
   proposalId: string
   jobTitle: string
   clientName: string | null
+  quoteType: QuoteType
   lineItems: Job['line_items']
+  recurringConfig: RecurringConfig | null
   initialScopeText: string | null
   initialCoverNote: string | null
 }
@@ -16,7 +18,7 @@ interface Props {
 type Status = 'idle' | 'generating' | 'ready' | 'error'
 
 export default function GenerateWordingSection({
-  proposalId, jobTitle, clientName, lineItems, initialScopeText, initialCoverNote,
+  proposalId, jobTitle, clientName, quoteType, lineItems, recurringConfig, initialScopeText, initialCoverNote,
 }: Props) {
   const supabase = createClient()
 
@@ -38,7 +40,10 @@ export default function GenerateWordingSection({
         body: JSON.stringify({
           jobTitle,
           clientName,
-          lineItems: lineItems.map(i => ({ label: i.label, type: i.type, quantity: i.quantity })),
+          quoteType,
+          ...(quoteType === 'recurring'
+            ? { recurringConfig }
+            : { lineItems: lineItems.map(i => ({ label: i.label, type: i.type, quantity: i.quantity })) }),
         }),
       })
       let data: { scope_text?: string; cover_note?: string; error?: string } | null = null

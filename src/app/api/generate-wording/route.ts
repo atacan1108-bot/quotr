@@ -22,7 +22,7 @@ const SYSTEM_PROMPT = `You are a copywriting assistant embedded in Quotr, an app
 
 Write in clear, professional but friendly business English suited to the Dutch contracting market — direct, warm, no filler, no hard sell.
 
-You will be given a job title, an optional client name, and a list of labour and material line items (with quantities but no cost data). Produce exactly two pieces of text:
+You will be given a job title, an optional client name, and either (a) a list of labour and material line items (with quantities but no cost data) for a one-off job, or (b) a recurring service contract's schedule (days/week, weeks/year, contract length, notice period, auto-renewal — no cost data). Produce exactly two pieces of text:
 
 1. scope_text — a concise scope-of-work description. Summarize the labour and materials involved in plain language a client can understand, as a short paragraph or a few sentences. This is not a legal contract clause — keep it readable.
 2. cover_note — a short, warm note addressed to the client by name (3-4 sentences), the kind of thing that would appear above the quote when it's sent. Thank them, briefly frame what the quote covers, and invite them to reach out with questions.
@@ -41,10 +41,20 @@ interface LineItemInput {
   quantity: number
 }
 
+interface RecurringConfigInput {
+  days_per_week:        number
+  weeks_per_year:       number
+  contract_term_months: number
+  notice_period_months: number | null
+  auto_renewal:          boolean
+}
+
 interface RequestBody {
-  jobTitle: string
-  clientName: string | null
-  lineItems: LineItemInput[]
+  jobTitle:        string
+  clientName:      string | null
+  quoteType?:      'one_off' | 'recurring'
+  lineItems?:      LineItemInput[]
+  recurringConfig?: RecurringConfigInput | null
 }
 
 interface WordingResult {
@@ -103,18 +113,36 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const jobTitle = body.jobTitle?.trim()
-  const lineItems = Array.isArray(body.lineItems) ? body.lineItems : []
-  if (!jobTitle || lineItems.length === 0) {
-    return NextResponse.json({ error: 'Missing job title or line items.' }, { status: 400 })
-  }
+  const jobTitle   = body.jobTitle?.trim()
   const clientName = body.clientName?.trim() || null
+  const quoteType  = body.quoteType === 'recurring' ? 'recurring' : 'one_off'
+
+  if (!jobTitle) {
+    return NextResponse.json({ error: 'Missing job title.' }, { status: 400 })
+  }
+
+  let contextBlock: string
+  if (quoteType === 'recurring') {
+    const rc = body.recurringConfig
+    if (!rc || !rc.days_per_week || !rc.weeks_per_year || !rc.contract_term_months) {
+      return NextResponse.json({ error: 'Missing contract terms.' }, { status: 400 })
+    }
+    contextBlock = `This is a recurring service contract, not a one-off job.
+Schedule: ${rc.days_per_week} days per week, ${rc.weeks_per_year} weeks per year.
+Contract length: ${rc.contract_term_months} months${rc.notice_period_months ? `, with a ${rc.notice_period_months}-month notice period` : ''}.
+${rc.auto_renewal ? 'The contract automatically renews after the term.' : 'The contract ends at the end of the term unless renewed.'}`
+  } else {
+    const lineItems = Array.isArray(body.lineItems) ? body.lineItems : []
+    if (lineItems.length === 0) {
+      return NextResponse.json({ error: 'Missing line items.' }, { status: 400 })
+    }
+    contextBlock = `Line items:\n${lineItems.map(itemLine).join('\n')}`
+  }
 
   const userPrompt = `Job title: ${jobTitle}
 Client name: ${clientName ?? '(not provided)'}
 
-Line items:
-${lineItems.map(itemLine).join('\n')}
+${contextBlock}
 
 Write scope_text and cover_note as instructed.`
 
