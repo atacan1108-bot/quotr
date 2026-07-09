@@ -54,7 +54,32 @@ export async function POST(
     return NextResponse.json({ error: 'This quote doesn\'t have a saved proposal yet.' }, { status: 400 })
   }
 
-  const logCtx = { proposalId: data.proposal.id, jobId: id, hasTemplate: !!data.rateCard.template_html }
+  // Guard: never render a PDF from zero line items — this is what silently
+  // produced a blank/contentless PDF for recurring quotes before they had
+  // their own line items to price from.
+  const isRecurring   = data.job.quote_type === 'recurring'
+  const lineItemCount = isRecurring ? (data.job.recurring_line_items?.length ?? 0) : data.job.line_items.length
+  if (lineItemCount === 0) {
+    return NextResponse.json(
+      { error: 'Add at least one line item before generating a PDF.' },
+      { status: 400 },
+    )
+  }
+
+  // The built-in design (ProposalPDF) only understands one-off pricing —
+  // for a recurring quote with no custom template there's nothing correct
+  // to fall back to, so refuse clearly instead of rendering the wrong thing.
+  if (isRecurring && !data.rateCard.template_html) {
+    return NextResponse.json(
+      { error: 'Recurring quotes need an HTML template uploaded in Settings — the built-in design only supports one-off quotes.' },
+      { status: 400 },
+    )
+  }
+
+  const logCtx = {
+    proposalId: data.proposal.id, jobId: id,
+    hasTemplate: !!data.rateCard.template_html, quoteType: data.job.quote_type, lineItemCount,
+  }
 
   let buffer: Buffer
   let fellBack = false
@@ -64,8 +89,16 @@ export async function POST(
     try {
       // Stage (d): replace {{tokens}} and expand the line-item region.
       const { data: templateData, items } = buildTemplateData(data)
+      console.log('generate-pdf: built template data', { ...logCtx, itemCount: items.length })
+      if (items.length === 0) {
+        // Should be unreachable — the lineItemCount guard above already
+        // caught this — but this is the exact failure mode that produced a
+        // blank PDF before, so it gets its own explicit, specific check.
+        throw new Error('No line items were passed to the template — refusing to render an empty quote.')
+      }
+
       const filledHtml = fillTemplate(data.rateCard.template_html, templateData, items)
-      console.log('generate-pdf: filled template HTML', { ...logCtx, filledHtmlLength: filledHtml.length, itemCount: items.length })
+      console.log('generate-pdf: filled template HTML', { ...logCtx, filledHtmlLength: filledHtml.length })
       if (!filledHtml.trim()) {
         throw new Error('Token replacement produced empty HTML — the uploaded template may be malformed.')
       }
@@ -74,12 +107,24 @@ export async function POST(
       buffer = await renderHtmlToPdf(filledHtml)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      console.error('generate-pdf: custom template render failed — falling back to built-in design', {
+      console.error('generate-pdf: custom template render failed', {
         ...logCtx,
         error: message,
         stack: err instanceof Error ? err.stack : undefined,
         cause: (err as { cause?: unknown })?.cause,
       })
+
+      // The built-in design only understands one-off pricing — falling back
+      // to it for a recurring quote would just reproduce the original
+      // blank-PDF bug in a different shape, so recurring quotes fail
+      // loudly here instead of silently rendering the wrong thing.
+      if (isRecurring) {
+        return NextResponse.json(
+          { error: `Could not render your template: ${message}` },
+          { status: 502 },
+        )
+      }
+
       fellBack = true
       fallbackReason = message
 

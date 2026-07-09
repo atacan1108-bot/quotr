@@ -4,8 +4,8 @@
  */
 
 import { createClient } from './supabase/server'
-import { calculateProposal } from './pricing'
-import type { ProposalBreakdown } from './pricing'
+import { calculateProposal, calculateRecurringProposal } from './pricing'
+import type { ProposalBreakdown, RecurringBreakdown } from './pricing'
 import type { Job, Client, Proposal, RateCard } from './types'
 import { EMPTY_BRANDING } from './types'
 
@@ -25,9 +25,12 @@ export interface QuoteExportData {
     | 'terms_text'
     | 'branding'
     | 'template_html'
+    | 'prices_shown_excluding_vat'
   >
-  /** Full priced breakdown from the pricing engine (per-item + totals). */
+  /** Full priced breakdown from the one-off pricing engine (per-item + totals). Always computed — harmlessly all-zero for a recurring job, since job.line_items is empty for those. */
   breakdown: ProposalBreakdown
+  /** Recurring pricing engine's breakdown — null for one-off jobs, computed from job.recurring_line_items + job.recurring_config for recurring ones. */
+  recurringBreakdown: RecurringBreakdown | null
   shareUrl: string
   /**
    * Stable per-contractor sequence number for this proposal (1, 2, 3, ...),
@@ -51,6 +54,7 @@ const DEFAULT_RC = {
   terms_text:              null,
   branding:                EMPTY_BRANDING,
   template_html:           null,
+  prices_shown_excluding_vat: false,
 }
 
 export async function getQuoteExportData(
@@ -77,7 +81,7 @@ export async function getQuoteExportData(
       .maybeSingle(),
     supabase
       .from('rate_cards')
-      .select('labour_rate_per_hour, material_markup_percent, vat_percent, currency, business_name, business_address, business_email, logo_url, terms_text, branding, template_html')
+      .select('labour_rate_per_hour, material_markup_percent, vat_percent, currency, business_name, business_address, business_email, logo_url, terms_text, branding, template_html, prices_shown_excluding_vat')
       .eq('owner_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -94,6 +98,19 @@ export async function getQuoteExportData(
     (job.line_items ?? []) as Parameters<typeof calculateProposal>[0],
     rc,
   )
+
+  // Recurring jobs price from their own line items + contract terms instead —
+  // null for one-off jobs so callers can tell the two apart unambiguously.
+  const recurringBreakdown = job.quote_type === 'recurring'
+    ? calculateRecurringProposal(
+        (job.recurring_line_items ?? []) as Parameters<typeof calculateRecurringProposal>[0],
+        {
+          weeks_per_year:       job.recurring_config?.weeks_per_year ?? 0,
+          contract_term_months: job.recurring_config?.contract_term_months ?? 0,
+        },
+        rc,
+      )
+    : null
 
   const shareUrl = proposal?.share_token
     ? `${baseUrl}/quote/${proposal.share_token}`
@@ -114,6 +131,7 @@ export async function getQuoteExportData(
     proposal: proposal  as Proposal | null,
     rateCard: rc,
     breakdown,
+    recurringBreakdown,
     shareUrl,
     quoteSequence,
   }

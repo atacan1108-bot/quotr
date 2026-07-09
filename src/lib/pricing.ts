@@ -201,29 +201,40 @@ export function calculateProposal(
 
 // ─── Recurring service-contract engine ───────────────────────────────────────
 //
-// A second, independent pricing mode for day-rate contracts (e.g. a cleaning
-// crew on site X days/week). Shares this file's cents-based rounding
-// discipline and helpers, but never touches calculateProposal's inputs,
-// outputs, or behavior above — one-off quotes are completely unaffected.
+// A second, independent pricing mode for itemized recurring contracts (e.g.
+// a cleaning crew billed at a day rate X days/week, plus an hourly extra-work
+// line, plus a monthly fixed fee — each line can have its own rate shape).
+// Shares this file's cents-based rounding discipline and helpers, but never
+// touches calculateProposal's inputs, outputs, or behavior above — one-off
+// quotes are completely unaffected.
 
-/** Recurring pricing defaults — lives on the rate card, see RateCard in types.ts. */
-type RecurringRateCard = Pick<
-  RateCard,
-  | 'day_rate'
-  | 'hours_per_day'
-  | 'weekend_surcharge_percent'
-  | 'holiday_surcharge_percent'
-  | 'extra_work_hourly_rate'
-  | 'vat_percent'
-  | 'prices_shown_excluding_vat'
->
+export type RecurringRateType  = 'day_rate' | 'hourly' | 'fixed_per_period'
+export type RecurringFrequency = 'per_day' | 'per_week' | 'per_month' | 'per_year'
+
+/**
+ * One itemized recurring charge. quantity is informational for 'day_rate'
+ * (e.g. hours/day, shown for reference — the flat amount is the actual cost,
+ * never amount × quantity) and a real multiplier for 'hourly'/'fixed_per_period'
+ * (hours worked, or a unit count). occurrences is how many times this line
+ * bills within its own frequency unit: frequency 'per_day' + occurrences 5
+ * means "5 days a week"; 'per_month' + occurrences 1 means "once a month".
+ */
+export interface RecurringLineItem {
+  label:       string
+  rate_type:   RecurringRateType
+  amount:      number
+  quantity:    number
+  frequency:   RecurringFrequency
+  occurrences: number
+}
 
 /** Per-quote contract facts — lives on jobs.recurring_config, see RecurringConfig in types.ts. */
 export interface RecurringContractTerms {
-  days_per_week:        number
   weeks_per_year:       number
   contract_term_months: number
 }
+
+type RecurringRateCard = Pick<RateCard, 'vat_percent' | 'prices_shown_excluding_vat'>
 
 /** One period's money, always computed both ways — prices_shown_excluding_vat only affects display. */
 export interface RecurringPeriodAmount {
@@ -232,20 +243,26 @@ export interface RecurringPeriodAmount {
   incl_vat:   number
 }
 
+/** One priced recurring line, ex-VAT only — VAT is applied once at the quote level, same as calculateProposal. */
+export interface RecurringPricedItem {
+  label:               string
+  rate_type:           RecurringRateType
+  amount:              number
+  quantity:            number
+  frequency:           RecurringFrequency
+  occurrences:         number
+  cost_per_occurrence: number
+  per_week:            number
+  per_month:           number
+  per_year:            number
+  contract_total:      number
+}
+
 export interface RecurringBreakdown {
-  day_rate:                  number
-  hours_per_day:             number
-  hourly_rate:               number  // day_rate / hours_per_day
-  weekend_surcharge_percent: number
-  weekend_hourly_rate:       number  // hourly_rate increased by weekend_surcharge_percent
-  holiday_surcharge_percent: number
-  holiday_hourly_rate:       number  // hourly_rate increased by holiday_surcharge_percent
-  extra_work_hourly_rate:    number
-  days_per_week:             number
-  weeks_per_year:            number
-  hours_per_week:            number
-  contract_term_months:      number
-  vat_percent:                number
+  items:                 RecurringPricedItem[]
+  weeks_per_year:        number
+  contract_term_months:  number
+  vat_percent:           number
   prices_shown_excluding_vat: boolean
   per_week:       RecurringPeriodAmount
   per_month:      RecurringPeriodAmount
@@ -258,43 +275,80 @@ export interface RecurringBreakdown {
  * calculateProposal. 100% deterministic: no AI, no invented numbers, same
  * integer-cents rounding discipline as the rest of this file.
  *
- * Money flows from day_rate directly (day_rate × days_per_week × weeks_per_year,
- * then ÷12 for a monthly figure) rather than through the rounded hourly_rate —
- * hourly/weekend/holiday rates below are accurate reference figures (e.g. for
- * billing one-off extra work), not the basis for the contract total, so
- * rounding a display rate never drifts the actual contract price.
- *
- * contract_total = monthly (rounded) × contract_term_months, matching how a
- * real contract is actually invoiced: a fixed amount every month for the term.
+ * Each line's cost-per-occurrence is annualized directly (occurrences ×
+ * weeks_per_year for day/week frequencies, × 12 for monthly, × 1 for yearly)
+ * and rounded once — then quote-level week/month/year/contract-term figures
+ * are derived from the SUM of every line's exact yearly cents, not from
+ * summing already-rounded per-line monthly figures, so the quote total never
+ * silently drifts from what the math actually says. contract_total = monthly
+ * (rounded) × contract_term_months, matching how a real contract is actually
+ * invoiced: a fixed amount every month for the term.
  *
  * Missing/zero inputs (e.g. a contract being drafted with fields not filled
- * in yet) produce zeroed-out results rather than throwing or returning NaN.
+ * in yet, or zero line items) produce zeroed-out results rather than
+ * throwing or returning NaN.
  */
 export function calculateRecurringProposal(
-  terms:    RecurringContractTerms,
-  rateCard: RecurringRateCard,
+  lineItems: RecurringLineItem[],
+  terms:     RecurringContractTerms,
+  rateCard:  RecurringRateCard,
 ): RecurringBreakdown {
-  const dayRateCents   = toCents(safeNum(rateCard.day_rate, 0))
-  const hoursPerDay    = safeNum(rateCard.hours_per_day, 0)
-  const weekendPercent = safeNum(rateCard.weekend_surcharge_percent, 0)
-  const holidayPercent = safeNum(rateCard.holiday_surcharge_percent, 0)
-  const extraWorkCents = toCents(safeNum(rateCard.extra_work_hourly_rate, 0))
-  const vatPercent     = safeNum(rateCard.vat_percent, 0)
-  const exVatDisplay   = !!rateCard.prices_shown_excluding_vat
-
-  const daysPerWeek        = safeNum(terms.days_per_week, 0)
   const weeksPerYear       = safeNum(terms.weeks_per_year, 0)
   const contractTermMonths = safeNum(terms.contract_term_months, 0)
+  const vatPercent         = safeNum(rateCard.vat_percent, 0)
+  const exVatDisplay       = !!rateCard.prices_shown_excluding_vat
 
-  // Derived hourly rates — display/reference only, see doc comment above.
-  const hourlyRateCents = hoursPerDay > 0 ? Math.round(dayRateCents / hoursPerDay) : 0
-  const weekendHourlyCents = Math.round(hourlyRateCents * (100 + weekendPercent) / 100)
-  const holidayHourlyCents = Math.round(hourlyRateCents * (100 + holidayPercent) / 100)
+  let totalYearlyCents = 0
 
-  // Contract money — driven by day_rate directly, not the rounded hourly rate.
-  const weeklyCents  = Math.round(dayRateCents * daysPerWeek)
-  const yearlyCents  = Math.round(weeklyCents * weeksPerYear)
-  const monthlyCents = weeksPerYear > 0 ? Math.round(yearlyCents / 12) : 0
+  const pricedItems: RecurringPricedItem[] = (lineItems ?? []).map(raw => {
+    const label      = raw.label ?? ''
+    const rateType    = raw.rate_type ?? 'fixed_per_period'
+    const frequency   = raw.frequency ?? 'per_month'
+    const amountCents = toCents(safeNum(raw.amount, 0))
+    const quantity    = safeNum(raw.quantity, 0)
+    const occurrences = safeNum(raw.occurrences, 0)
+
+    // Day rate is a flat price for the day — quantity (hours/day) is shown
+    // for reference only and never multiplies the cost.
+    const costPerOccurrenceCents = rateType === 'day_rate'
+      ? amountCents
+      : Math.round(amountCents * quantity)
+
+    let yearlyCents: number
+    switch (frequency) {
+      case 'per_day':
+      case 'per_week':
+        yearlyCents = Math.round(costPerOccurrenceCents * occurrences * weeksPerYear)
+        break
+      case 'per_month':
+        yearlyCents = Math.round(costPerOccurrenceCents * occurrences * 12)
+        break
+      case 'per_year':
+        yearlyCents = Math.round(costPerOccurrenceCents * occurrences)
+        break
+    }
+
+    totalYearlyCents += yearlyCents
+
+    const lineMonthlyCents = Math.round(yearlyCents / 12)
+    const lineWeeklyCents  = weeksPerYear > 0 ? Math.round(yearlyCents / weeksPerYear) : 0
+    const lineContractTotalCents = Math.round(lineMonthlyCents * contractTermMonths)
+
+    return {
+      label, rate_type: rateType, amount: fromCents(amountCents), quantity, frequency, occurrences,
+      cost_per_occurrence: fromCents(costPerOccurrenceCents),
+      per_week:            fromCents(lineWeeklyCents),
+      per_month:           fromCents(lineMonthlyCents),
+      per_year:            fromCents(yearlyCents),
+      contract_total:      fromCents(lineContractTotalCents),
+    }
+  })
+
+  // Quote-level totals come from the summed exact yearly cents across every
+  // line, not from summing each line's already-rounded monthly/weekly
+  // display figures — see doc comment above.
+  const monthlyCents = Math.round(totalYearlyCents / 12)
+  const weeklyCents  = weeksPerYear > 0 ? Math.round(totalYearlyCents / weeksPerYear) : 0
   const contractTotalCents = Math.round(monthlyCents * contractTermMonths)
 
   function periodAmount(cents: number): RecurringPeriodAmount {
@@ -307,23 +361,14 @@ export function calculateRecurringProposal(
   }
 
   return {
-    day_rate:                  fromCents(dayRateCents),
-    hours_per_day:             hoursPerDay,
-    hourly_rate:               fromCents(hourlyRateCents),
-    weekend_surcharge_percent: weekendPercent,
-    weekend_hourly_rate:       fromCents(weekendHourlyCents),
-    holiday_surcharge_percent: holidayPercent,
-    holiday_hourly_rate:       fromCents(holidayHourlyCents),
-    extra_work_hourly_rate:    fromCents(extraWorkCents),
-    days_per_week:             daysPerWeek,
-    weeks_per_year:            weeksPerYear,
-    hours_per_week:            hoursPerDay * daysPerWeek,
-    contract_term_months:      contractTermMonths,
+    items:                 pricedItems,
+    weeks_per_year:        weeksPerYear,
+    contract_term_months:  contractTermMonths,
     vat_percent:                vatPercent,
     prices_shown_excluding_vat: exVatDisplay,
     per_week:       periodAmount(weeklyCents),
     per_month:      periodAmount(monthlyCents),
-    per_year:       periodAmount(yearlyCents),
+    per_year:       periodAmount(totalYearlyCents),
     contract_total: periodAmount(contractTotalCents),
   }
 }

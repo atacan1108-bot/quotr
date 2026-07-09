@@ -1,0 +1,25 @@
+-- ================================================================
+-- Quotr — Recurring line items (fixes empty recurring-quote PDFs)
+-- ================================================================
+--
+-- WHERE TO PASTE THIS:
+--   1. Go to https://supabase.com/dashboard
+--   2. Open your project (ojzwlttzdipijllzqqix)
+--   3. Left sidebar → "SQL Editor"
+--   4. Click "New query"
+--   5. Select all text below and paste it in
+--   6. Click the green "Run" button (or press Ctrl+Enter / Cmd+Enter)
+--
+-- What this does:
+--   Adds "recurring_line_items" to jobs — a JSON list of itemized recurring
+--   charges (label, rate type, amount, quantity, frequency, occurrences),
+--   alongside the existing "line_items" column used for one-off quotes.
+--   Recurring quotes previously had no way to itemize their pricing at all,
+--   which is why the generated PDF came out empty. This column is what
+--   the pricing engine and the quote screen now read from.
+--
+-- Pure addition — no data loss, and one-off quotes (line_items) are
+-- completely untouched. Safe to run more than once.
+-- ================================================================
+
+alter table jobs add column if not exists recurring_line_items jsonb not null default '[]'::jsonb;

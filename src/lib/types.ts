@@ -98,8 +98,12 @@ export type JobStatus = 'draft' | 'quoted' | 'sent' | 'accepted' | 'declined'
 export type QuoteType = 'one_off' | 'recurring'
 
 /**
- * Per-quote contract facts for a 'recurring' job — day_rate/hours_per_day
- * come from the rate card (see RateCard above), not stored per-job.
+ * Per-quote contract facts for a 'recurring' job. weeks_per_year and
+ * contract_term_months drive the pricing engine's week→month→year→term
+ * conversions; days_per_week/notice_period_months/auto_renewal are
+ * descriptive (used for AI wording and display) — actual per-line pricing
+ * now comes from each RecurringLineItem's own frequency/occurrences, since
+ * different lines on the same contract can run on different schedules.
  */
 export interface RecurringConfig {
   days_per_week:         number
@@ -107,6 +111,28 @@ export interface RecurringConfig {
   contract_term_months:  number
   notice_period_months:  number | null
   auto_renewal:          boolean
+}
+
+export type RecurringRateType  = 'day_rate' | 'hourly' | 'fixed_per_period'
+export type RecurringFrequency = 'per_day' | 'per_week' | 'per_month' | 'per_year'
+
+/**
+ * One itemized recurring charge, e.g. "Cleaning first floor incl. OR complex
+ * — day rate €255 based on 5 hours/day". quantity's meaning depends on
+ * rate_type: for 'day_rate' it's informational (hours/day, shown for
+ * reference — the flat day rate is the actual cost, not rate × hours); for
+ * 'hourly'/'fixed_per_period' it's a real multiplier (hours worked, or a
+ * unit count). occurrences is how many times this line bills within its
+ * own frequency unit — e.g. frequency 'per_day' + occurrences 5 means
+ * "5 days a week"; frequency 'per_month' + occurrences 1 means "once a month".
+ */
+export interface RecurringLineItem {
+  label:       string
+  rate_type:   RecurringRateType
+  amount:      number
+  quantity:    number
+  frequency:   RecurringFrequency
+  occurrences: number
 }
 
 export interface Job {
@@ -119,8 +145,9 @@ export interface Job {
   description: string | null
   status:      JobStatus
   line_items:  LineItem[]
-  quote_type:       QuoteType
-  recurring_config: RecurringConfig | null
+  quote_type:            QuoteType
+  recurring_config:      RecurringConfig | null
+  recurring_line_items:  RecurringLineItem[]
 }
 
 export interface Proposal {

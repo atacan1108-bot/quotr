@@ -40,14 +40,33 @@ export interface TemplateData {
   total:             string
   terms_text:        string
   footer_text:       string
+  // Recurring quotes only — populated alongside the generic tokens above
+  // (subtotal/vat_amount/total map to the contract total there), null/blank
+  // for one-off quotes. See buildTemplateData.
+  total_per_week:        string
+  total_per_month:       string
+  total_per_year:        string
+  total_contract_term:   string
+  contract_term_months:  string
 }
 
+/**
+ * One repeated row in the LINE_ITEMS region. One-off quotes fill
+ * item_quantity/item_unit_price; recurring quotes fill item_rate/
+ * item_frequency/item_period_total/item_year_total instead — item_label is
+ * shared. A template only ever uses the set matching its quote type, but
+ * both are always in `values` so either works.
+ */
 export interface TemplateLineItem {
-  [key: string]:    string
-  item_label:       string
-  item_quantity:    string
-  item_unit_price:  string
-  item_total:       string
+  [key: string]:      string
+  item_label:         string
+  item_quantity:      string
+  item_unit_price:    string
+  item_total:         string
+  item_rate:          string
+  item_frequency:     string
+  item_period_total:  string
+  item_year_total:    string
 }
 
 export const SCALAR_TOKENS = [
@@ -56,9 +75,13 @@ export const SCALAR_TOKENS = [
   'customer_name', 'customer_address', 'customer_email', 'customer_phone',
   'quote_number', 'quote_date', 'cover_note', 'scope_text',
   'subtotal', 'vat_percent', 'vat_amount', 'total', 'terms_text', 'footer_text',
+  'total_per_week', 'total_per_month', 'total_per_year', 'total_contract_term', 'contract_term_months',
 ] as const satisfies readonly (keyof TemplateData)[]
 
-export const LINE_ITEM_TOKENS = ['item_label', 'item_quantity', 'item_unit_price', 'item_total'] as const
+export const LINE_ITEM_TOKENS = [
+  'item_label', 'item_quantity', 'item_unit_price', 'item_total',
+  'item_rate', 'item_frequency', 'item_period_total', 'item_year_total',
+] as const
 
 const LINE_ITEMS_REGION = /<!--\s*LINE_ITEMS_START\s*-->([\s\S]*?)<!--\s*LINE_ITEMS_END\s*-->/
 
