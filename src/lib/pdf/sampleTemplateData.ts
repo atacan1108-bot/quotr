@@ -7,31 +7,28 @@
  */
 import type { TemplateData, TemplateLineItem } from '@/lib/htmlTemplate'
 import { euro, fmtDate } from '@/lib/pdf/shared'
+import { calculateRecurringPeriods } from '@/lib/pricing'
 
-// Every sample line item fills BOTH one-off tokens (item_quantity/
-// item_unit_price/item_total) and recurring tokens (item_rate/
-// item_frequency/item_period_total/item_year_total) with parallel, sensible
-// values — a preview doesn't know in advance which set the uploaded
-// template's row actually uses, so both are always real, not blank.
+// The SAME three sample items work for both quote types — there's only
+// ever one line-item shape now.
 export const SAMPLE_TEMPLATE_ITEMS: TemplateLineItem[] = [
-  { item_label: 'Labour — plumbing repair', item_quantity: '4 hours', item_unit_price: euro(65),   item_total: euro(260),
-    item_rate: `${euro(65)}/hr`,   item_frequency: '1×/week',   item_period_total: euro(260),   item_year_total: euro(3120) },
-  { item_label: 'Replacement tap',          item_quantity: '1 unit',  item_unit_price: euro(138),  item_total: euro(138),
-    item_rate: euro(138),          item_frequency: '1×/month',  item_period_total: euro(138),   item_year_total: euro(1656) },
-  { item_label: 'Call-out fee',             item_quantity: '1',       item_unit_price: euro(45),   item_total: euro(45),
-    item_rate: `${euro(45)}/day`,  item_frequency: '1 day/week', item_period_total: euro(45),    item_year_total: euro(2340) },
+  { item_label: 'Labour — plumbing repair', item_quantity: '4 hours', item_unit_price: euro(65),  item_total: euro(260) },
+  { item_label: 'Replacement tap',          item_quantity: '1 unit',  item_unit_price: euro(138), item_total: euro(138) },
+  { item_label: 'Call-out fee',             item_quantity: '1',       item_unit_price: euro(45),  item_total: euro(45) },
 ]
 
 const SUBTOTAL = 260 + 138 + 45
 const VAT = Math.round(SUBTOTAL * 0.21 * 100) / 100
 const TOTAL = SUBTOTAL + VAT
 
-// Recurring quote-level sample figures — a realistic multi-line contract
-// (not derived from the one-off items above, which are a different scenario).
-const REC_PER_WEEK  = 1696.38
-const REC_PER_MONTH = 7351.00
-const REC_PER_YEAR  = 88212.00
-const REC_TERM      = 88212.00
+// Recurring sample figures are DERIVED from that same €443 "one day" bundle
+// via the real pricing function (not hand-computed), for a sample 5-day/
+// week, 52-week, 12-month contract — so the preview is internally
+// consistent with the line items above, same as a real recurring quote.
+const samplePeriods = calculateRecurringPeriods(
+  { subtotal: SUBTOTAL, vat_percent: 21 },
+  { days_per_week: 5, weeks_per_year: 52, contract_term_months: 12 },
+)
 
 export const SAMPLE_TEMPLATE_DATA: TemplateData = {
   business_logo:     '',
@@ -57,9 +54,10 @@ export const SAMPLE_TEMPLATE_DATA: TemplateData = {
   total:             euro(TOTAL),
   terms_text:        'Payment due within 14 days. Quote valid for 30 days.',
   footer_text:       'Your Business Name · Amsterdam',
-  total_per_week:        euro(REC_PER_WEEK),
-  total_per_month:       euro(REC_PER_MONTH),
-  total_per_year:        euro(REC_PER_YEAR),
-  total_contract_term:   euro(REC_TERM),
-  contract_term_months:  '12',
+  total_per_week:        euro(samplePeriods.per_week.incl_vat),
+  total_per_month:       euro(samplePeriods.per_month.incl_vat),
+  total_per_year:        euro(samplePeriods.per_year.incl_vat),
+  total_contract_term:   euro(samplePeriods.contract_total.incl_vat),
+  contract_term_months:  String(samplePeriods.contract_term_months),
+  notice_period_months:  '1',
 }

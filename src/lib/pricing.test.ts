@@ -9,7 +9,7 @@
  * A "FAIL ✗" line means something is wrong and shows what we got vs expected.
  */
 
-import { calculateProposal, calculateRecurringProposal } from './pricing.js'
+import { calculateProposal, calculateRecurringPeriods } from './pricing.js'
 import type { LineItem } from './pricing.js'
 
 // ─── Minimal test harness (no framework needed) ──────────────────────────────
@@ -191,62 +191,65 @@ const t6 = calculateProposal(
 // vat on €0 = €0, total = €0
 test('missing quantity → 0 hours → total = 0', () => expect(t6.total, 0, 'bad input total'))
 
-// ── Test 7: Recurring — the exact worked example from the spec ───────────────
+// ── Test 7: Recurring — the exact worked example, from ONE-OFF line items ────
 //
-// One line item: day rate €255, informational 5 hours/day, billed 5 days a
-// week (occurrences), 52 weeks a year.
-//   cost_per_occurrence = €255,00                  (flat — quantity is NOT multiplied in)
-//   per_year (ex VAT)   = €255 × 5 days × 52 weeks = €66.300,00
+// Recurring quotes use the SAME line items and SAME calculateProposal() as
+// one-off — there is no separate recurring pricing model. One labour line,
+// 5 hours at €51/hr, prices to exactly €255,00 — the "cost of one day".
+//   base subtotal (one day)         = 5h × €51,00              = €255,00
+//   per_week (ex VAT)  = €255 × 5 days/week                     = €1.275,00
+//   per_year (ex VAT)  = €1.275 × 52 weeks                      = €66.300,00
 //
-console.log('\nTest 7 — Recurring: worked example (€255/day × 5 days/week × 52 weeks)')
+console.log('\nTest 7 — Recurring: worked example, derived from one-off line items (5h × €51/hr = €255/day; × 5 days/week × 52 weeks)')
 
-const t7 = calculateRecurringProposal(
-  [{ label: 'Daily cleaning crew', rate_type: 'day_rate', amount: 255, quantity: 5, frequency: 'per_day', occurrences: 5 }],
-  { weeks_per_year: 52, contract_term_months: 12 },
-  { vat_percent: 21, prices_shown_excluding_vat: true },
+const t7base = calculateProposal(
+  [{ label: 'Daily cleaning crew', type: 'labour', quantity: 5, unit_cost: 0, hours: 5 }],
+  { labour_rate_per_hour: 51, material_markup_percent: 15, vat_percent: 21 },
 )
+test('base subtotal (one day) = 255,00', () => expect(t7base.subtotal, 255.00, 'base subtotal'))
 
-test('cost_per_occurrence = 255,00 (day rate ignores quantity)', () => expect(t7.items[0].cost_per_occurrence, 255.00,   'cost/occurrence'))
-test('line per_year = 66.300,00',                                () => expect(t7.items[0].per_year,            66300.00, 'line per year'))
-test('quote per_year ex VAT = 66.300,00',                        () => expect(t7.per_year.ex_vat,               66300.00, 'quote per year'))
+const t7 = calculateRecurringPeriods(t7base, { days_per_week: 5, weeks_per_year: 52, contract_term_months: 12 })
 
-// ── Test 8: Recurring — multi-line contract: week/month/year/term + VAT ──────
-//
-// Three lines, different rate shapes, 52 weeks/year, 12-month contract, 21% VAT:
-//   A: day_rate    €255/day, informational 5h/day, 5 days/week
-//        cost/occurrence €255,00 → per_year = €255 × 5 × 52   = €66.300,00
-//   B: hourly      €76,50/hr (weekend rate) × 4 hours, once a week
-//        cost/occurrence €306,00 → per_year = €306 × 1 × 52   = €15.912,00
-//   C: fixed_per_period  €500,00 flat, once a month
-//        cost/occurrence €500,00 → per_year = €500 × 1 × 12   = €6.000,00
-//
-//   Total per_year (ex VAT):  66.300 + 15.912 + 6.000          = €88.212,00
-//   per_month (ex VAT):       88.212 / 12                       = €7.351,00
-//   per_week (ex VAT):        round(88.212 / 52)                = €1.696,38
-//   contract_total (ex VAT):  7.351 × 12                        = €88.212,00
-//   contract_total VAT:       88.212 × 21%                      = €18.524,52
-//   contract_total incl VAT:  88.212 + 18.524,52                = €106.736,52
-//
-console.log('\nTest 8 — Recurring: multi-line contract totals + VAT')
+test('per_week ex VAT = 1.275,00',  () => expect(t7.per_week.ex_vat, 1275.00, 'week ex vat'))
+test('per_year ex VAT = 66.300,00', () => expect(t7.per_year.ex_vat, 66300.00, 'year ex vat'))
 
-const t8 = calculateRecurringProposal(
+// ── Test 8: Recurring — multi-item one-off bundle, scaled to a full contract ─
+//
+// A realistic "one day on site" bundle — labour + material + a fixed
+// call-out fee — priced by the SAME engine as any one-off quote, then
+// scaled by the contract terms (5 days/week, 52 weeks/year, 12-month term).
+//   labour:   5h × €51,00/hr                          = €255,00
+//   material: 2 × €20,00, +15% markup (€40 + €6)       = €46,00
+//   fixed:    call-out fee                             = €50,00
+//   base subtotal (one day, ex VAT)                    = €351,00
+//
+//   per_week (ex VAT):  €351 × 5 days                  = €1.755,00
+//   per_year (ex VAT):  €1.755 × 52 weeks               = €91.260,00
+//   per_month (ex VAT): €91.260 / 12                    = €7.605,00
+//   contract_total (ex VAT): €7.605 × 12 months         = €91.260,00
+//   contract_total VAT (21%): €91.260 × 21%              = €19.164,60
+//   contract_total incl VAT: €91.260 + €19.164,60        = €110.424,60
+//
+console.log('\nTest 8 — Recurring: multi-item bundle (labour+material+fixed) scaled to a full contract')
+
+const t8base = calculateProposal(
   [
-    { label: 'Daily cleaning crew',    rate_type: 'day_rate',        amount: 255,   quantity: 5, frequency: 'per_day',   occurrences: 5 },
-    { label: 'Weekend deep clean',     rate_type: 'hourly',          amount: 76.50, quantity: 4, frequency: 'per_week',  occurrences: 1 },
-    { label: 'Monthly window service', rate_type: 'fixed_per_period', amount: 500,  quantity: 1, frequency: 'per_month', occurrences: 1 },
+    { label: 'Daily cleaning crew', type: 'labour',   quantity: 5, unit_cost: 0,  hours: 5 },
+    { label: 'Cleaning supplies',   type: 'material', quantity: 2, unit_cost: 20 },
+    { label: 'Call-out fee',        type: 'fixed',    quantity: 1, unit_cost: 50 },
   ],
-  { weeks_per_year: 52, contract_term_months: 12 },
-  { vat_percent: 21, prices_shown_excluding_vat: true },
+  { labour_rate_per_hour: 51, material_markup_percent: 15, vat_percent: 21 },
 )
+test('base subtotal (one day) = 351,00', () => expect(t8base.subtotal, 351.00, 'base subtotal'))
 
-test('line B cost_per_occurrence = 306,00 (76,50 × 4h)', () => expect(t8.items[1].cost_per_occurrence, 306.00,  'line B cost/occ'))
-test('line C cost_per_occurrence = 500,00',               () => expect(t8.items[2].cost_per_occurrence, 500.00,  'line C cost/occ'))
-test('per_year ex VAT = 88.212,00',                       () => expect(t8.per_year.ex_vat,             88212.00, 'year ex vat'))
-test('per_month ex VAT = 7.351,00',                       () => expect(t8.per_month.ex_vat,             7351.00, 'month ex vat'))
-test('per_week ex VAT = 1.696,38',                        () => expect(t8.per_week.ex_vat,              1696.38, 'week ex vat'))
-test('contract_total ex VAT = 88.212,00',                 () => expect(t8.contract_total.ex_vat,       88212.00, 'contract ex vat'))
-test('contract_total VAT = 18.524,52',                    () => expect(t8.contract_total.vat_amount,   18524.52, 'contract vat'))
-test('contract_total incl VAT = 106.736,52',              () => expect(t8.contract_total.incl_vat,    106736.52, 'contract incl vat'))
+const t8 = calculateRecurringPeriods(t8base, { days_per_week: 5, weeks_per_year: 52, contract_term_months: 12 })
+
+test('per_week ex VAT = 1.755,00',          () => expect(t8.per_week.ex_vat,        1755.00, 'week ex vat'))
+test('per_year ex VAT = 91.260,00',         () => expect(t8.per_year.ex_vat,       91260.00, 'year ex vat'))
+test('per_month ex VAT = 7.605,00',         () => expect(t8.per_month.ex_vat,       7605.00, 'month ex vat'))
+test('contract_total ex VAT = 91.260,00',   () => expect(t8.contract_total.ex_vat, 91260.00, 'contract ex vat'))
+test('contract_total VAT = 19.164,60',      () => expect(t8.contract_total.vat_amount, 19164.60, 'contract vat'))
+test('contract_total incl VAT = 110.424,60',() => expect(t8.contract_total.incl_vat, 110424.60, 'contract incl vat'))
 
 // ── Test 9: Recurring — rounding consistency ──────────────────────────────────
 //
@@ -255,17 +258,18 @@ test('contract_total incl VAT = 106.736,52',              () => expect(t8.contra
 // term total from an unrounded fraction". This is intentional: a real
 // contract invoices a fixed rounded amount every month.
 //
-//   per_year (ex VAT):  €100 × 1 occurrence × 53 weeks = €5.300,00
+//   base subtotal (one day, ex VAT):  €100,00
+//   per_year (ex VAT):  €100 × 1 day/week × 53 weeks   = €5.300,00
 //   per_month (ex VAT): round(€5.300,00 / 12)          = €441,67
 //   contract_total:     €441,67 × 12                   = €5.300,04  (4 cents more than per_year — expected)
 //
 console.log('\nTest 9 — Recurring: rounding stays exact and consistent, never drifts silently')
 
-const t9 = calculateRecurringProposal(
-  [{ label: 'Weekly visit', rate_type: 'day_rate', amount: 100, quantity: 8, frequency: 'per_day', occurrences: 1 }],
-  { weeks_per_year: 53, contract_term_months: 12 },
-  { vat_percent: 21, prices_shown_excluding_vat: false },
+const t9base = calculateProposal(
+  [{ label: 'Weekly visit', type: 'fixed', quantity: 1, unit_cost: 100 }],
+  { labour_rate_per_hour: 0, material_markup_percent: 0, vat_percent: 21 },
 )
+const t9 = calculateRecurringPeriods(t9base, { days_per_week: 1, weeks_per_year: 53, contract_term_months: 12 })
 
 test('per_year ex VAT = 5.300,00',          () => expect(t9.per_year.ex_vat,        5300.00, 'year ex vat'))
 test('per_month ex VAT = 441,67 (rounded)', () => expect(t9.per_month.ex_vat,        441.67, 'month rounded'))
@@ -275,20 +279,16 @@ test('contract_total = 5.300,04',           () => expect(t9.contract_total.ex_va
 //
 // A contract being drafted with no line items yet (exactly the bug report —
 // an empty recurring quote) must never throw or return NaN — everything
-// should come back as a clean zero, and items should be an empty array.
+// should come back as a clean zero.
 //
 console.log('\nTest 10 — Recurring: zero line items never throw, always zero')
 
-const t10 = calculateRecurringProposal(
-  [],
-  { weeks_per_year: 0, contract_term_months: 0 },
-  { vat_percent: 21, prices_shown_excluding_vat: false },
-)
+const t10base = calculateProposal([], { labour_rate_per_hour: 65, material_markup_percent: 15, vat_percent: 21 })
+const t10 = calculateRecurringPeriods(t10base, { days_per_week: 0, weeks_per_year: 0, contract_term_months: 0 })
 
-test('items is an empty array',              () => expect(t10.items.length,          0, 'items length'))
-test('per_week ex VAT = 0',                  () => expect(t10.per_week.ex_vat,       0, 'week zero'))
-test('per_month ex VAT = 0',                 () => expect(t10.per_month.ex_vat,      0, 'month zero'))
-test('contract_total incl VAT = 0',          () => expect(t10.contract_total.incl_vat, 0, 'contract zero'))
+test('per_week ex VAT = 0',         () => expect(t10.per_week.ex_vat,       0, 'week zero'))
+test('per_month ex VAT = 0',        () => expect(t10.per_month.ex_vat,      0, 'month zero'))
+test('contract_total incl VAT = 0', () => expect(t10.contract_total.incl_vat, 0, 'contract zero'))
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
 

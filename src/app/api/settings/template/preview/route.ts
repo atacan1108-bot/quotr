@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'You need to be logged in.' }, { status: 401 })
   }
 
-  let body: { html?: string }
+  let body: { html?: string; isRecurring?: boolean }
   try {
     body = await req.json()
   } catch {
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
   try {
     const sanitizedHtml = sanitizeTemplateHtml(html)
-    const filledHtml = fillTemplate(sanitizedHtml, SAMPLE_TEMPLATE_DATA, SAMPLE_TEMPLATE_ITEMS)
+    const filledHtml = fillTemplate(sanitizedHtml, SAMPLE_TEMPLATE_DATA, SAMPLE_TEMPLATE_ITEMS, body.isRecurring ?? false)
     const pdf = await renderHtmlToPdf(filledHtml)
     return new Response(new Uint8Array(pdf), {
       headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store' },

@@ -83,14 +83,9 @@ export interface RateCard {
   branding:         Branding | null
   template_html:    string | null
 
-  // Recurring service-contract pricing defaults — all optional, null until
-  // set in Settings. One-off pricing above is completely unaffected by these.
-  day_rate:                    number | null
-  hours_per_day:               number | null
-  weekend_surcharge_percent:   number | null
-  holiday_surcharge_percent:   number | null
-  extra_work_hourly_rate:      number | null
-  prices_shown_excluding_vat:  boolean
+  // Whether recurring quotes DISPLAY their period totals excluding VAT
+  // (common for B2B contracts). One-off pricing is unaffected by this.
+  prices_shown_excluding_vat: boolean
 }
 
 export type JobStatus = 'draft' | 'quoted' | 'sent' | 'accepted' | 'declined'
@@ -98,12 +93,12 @@ export type JobStatus = 'draft' | 'quoted' | 'sent' | 'accepted' | 'declined'
 export type QuoteType = 'one_off' | 'recurring'
 
 /**
- * Per-quote contract facts for a 'recurring' job. weeks_per_year and
- * contract_term_months drive the pricing engine's week→month→year→term
- * conversions; days_per_week/notice_period_months/auto_renewal are
- * descriptive (used for AI wording and display) — actual per-line pricing
- * now comes from each RecurringLineItem's own frequency/occurrences, since
- * different lines on the same contract can run on different schedules.
+ * Per-quote contract facts for a 'recurring' job — the ONLY thing that
+ * differs between a one-off and a recurring quote. line_items (below) are
+ * priced by the exact same engine either way; days_per_week/weeks_per_year/
+ * contract_term_months then scale that one-off price up into week/month/
+ * year/contract-term figures. notice_period_months/auto_renewal are
+ * descriptive (shown on the PDF and given to the AI wording feature).
  */
 export interface RecurringConfig {
   days_per_week:         number
@@ -111,28 +106,6 @@ export interface RecurringConfig {
   contract_term_months:  number
   notice_period_months:  number | null
   auto_renewal:          boolean
-}
-
-export type RecurringRateType  = 'day_rate' | 'hourly' | 'fixed_per_period'
-export type RecurringFrequency = 'per_day' | 'per_week' | 'per_month' | 'per_year'
-
-/**
- * One itemized recurring charge, e.g. "Cleaning first floor incl. OR complex
- * — day rate €255 based on 5 hours/day". quantity's meaning depends on
- * rate_type: for 'day_rate' it's informational (hours/day, shown for
- * reference — the flat day rate is the actual cost, not rate × hours); for
- * 'hourly'/'fixed_per_period' it's a real multiplier (hours worked, or a
- * unit count). occurrences is how many times this line bills within its
- * own frequency unit — e.g. frequency 'per_day' + occurrences 5 means
- * "5 days a week"; frequency 'per_month' + occurrences 1 means "once a month".
- */
-export interface RecurringLineItem {
-  label:       string
-  rate_type:   RecurringRateType
-  amount:      number
-  quantity:    number
-  frequency:   RecurringFrequency
-  occurrences: number
 }
 
 export interface Job {
@@ -144,10 +117,10 @@ export interface Job {
   title:       string
   description: string | null
   status:      JobStatus
+  // The ONE line-item list, used identically by both quote types.
   line_items:  LineItem[]
-  quote_type:            QuoteType
-  recurring_config:      RecurringConfig | null
-  recurring_line_items:  RecurringLineItem[]
+  quote_type:        QuoteType
+  recurring_config:  RecurringConfig | null
 }
 
 export interface Proposal {
@@ -247,11 +220,6 @@ export const DEFAULT_RATE_CARD: Omit<RateCard, 'id' | 'created_at' | 'owner_id'>
   logo_url:                null,
   branding:                EMPTY_BRANDING,
   template_html:           null,
-  day_rate:                   null,
-  hours_per_day:              null,
-  weekend_surcharge_percent:  null,
-  holiday_surcharge_percent:  null,
-  extra_work_hourly_rate:     null,
   prices_shown_excluding_vat: false,
 }
 

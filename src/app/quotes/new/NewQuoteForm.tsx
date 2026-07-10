@@ -6,8 +6,8 @@ import {
 } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { calculateProposal, calculateRecurringProposal, itemTotal, formatEuro } from '@/lib/pricing'
-import type { LineItem, ProposalBreakdown, RecurringContractTerms, RecurringLineItem, RecurringRateType, RecurringFrequency } from '@/lib/pricing'
+import { calculateProposal, calculateRecurringPeriods, itemTotal, formatEuro } from '@/lib/pricing'
+import type { LineItem, ProposalBreakdown, RecurringContractTerms } from '@/lib/pricing'
 import type { QuoteType, RecurringConfig } from '@/lib/types'
 
 // ─── Prop types ───────────────────────────────────────────────────────────────
@@ -17,11 +17,6 @@ type RateCardSlice = {
   labour_rate_per_hour: number
   material_markup_percent: number
   vat_percent: number
-  day_rate: number | null
-  hours_per_day: number | null
-  weekend_surcharge_percent: number | null
-  holiday_surcharge_percent: number | null
-  extra_work_hourly_rate: number | null
   prices_shown_excluding_vat: boolean
 }
 
@@ -65,58 +60,6 @@ function draftToLineItem(d: DraftItem): LineItem {
     unit_cost: d.unit_cost,
     hours:     d.type === 'labour' ? d.quantity : undefined,
   }
-}
-
-// ─── Recurring line item internal types ────────────────────────────────────────
-
-interface RecurringDraftItem {
-  id:          string
-  label:       string
-  rateType:    RecurringRateType
-  amount:      number
-  quantity:    number
-  frequency:   RecurringFrequency
-  occurrences: number
-}
-
-interface RecurringSheetState {
-  open:        boolean
-  editingId:   string | null
-  rateType:    RecurringRateType
-  label:       string
-  amount:      string
-  quantity:    string
-  frequency:   RecurringFrequency
-  occurrences: string
-}
-
-function blankRecurringSheet(rateType: RecurringRateType): RecurringSheetState {
-  return {
-    open: true, editingId: null, rateType, label: '', amount: '',
-    quantity: rateType === 'fixed_per_period' ? '1' : '',
-    frequency: rateType === 'day_rate' ? 'per_day' : rateType === 'fixed_per_period' ? 'per_month' : 'per_week',
-    occurrences: rateType === 'day_rate' ? '5' : '1',
-  }
-}
-
-function draftToRecurringLineItem(d: RecurringDraftItem): RecurringLineItem {
-  return {
-    label: d.label, rate_type: d.rateType, amount: d.amount,
-    quantity: d.quantity, frequency: d.frequency, occurrences: d.occurrences,
-  }
-}
-
-const RECURRING_RATE_TYPE_CFG: Record<RecurringRateType, { label: string; amountLabel: string; quantityLabel: string; showQuantity: boolean }> = {
-  day_rate:         { label: 'Day rate',   amountLabel: 'Day rate (€)',   quantityLabel: 'Hours/day (for reference)', showQuantity: true },
-  hourly:           { label: 'Hourly',     amountLabel: 'Hourly rate (€)', quantityLabel: 'Hours',                    showQuantity: true },
-  fixed_per_period: { label: 'Fixed fee',  amountLabel: 'Amount (€)',      quantityLabel: 'Units',                    showQuantity: true },
-}
-
-const FREQUENCY_CFG: Record<RecurringFrequency, { label: string; occurrencesLabel: string }> = {
-  per_day:   { label: 'Per day',   occurrencesLabel: 'Days / week' },
-  per_week:  { label: 'Per week',  occurrencesLabel: 'Times / week' },
-  per_month: { label: 'Per month', occurrencesLabel: 'Times / month' },
-  per_year:  { label: 'Per year',  occurrencesLabel: 'Times / year' },
 }
 
 // ─── Per-type display config ──────────────────────────────────────────────────
@@ -177,7 +120,6 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
 
   // ── Quote type + recurring contract state ─────────────────────
   const [quoteType, setQuoteType] = useState<QuoteType>('one_off')
-  const [recurringItems,       setRecurringItems]       = useState<RecurringDraftItem[]>([])
   const [daysPerWeekStr,       setDaysPerWeekStr]       = useState('5')
   const [weeksPerYearStr,      setWeeksPerYearStr]      = useState('52')
   const [contractTermStr,      setContractTermStr]      = useState('12')
@@ -197,13 +139,6 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
   })
   const sheetLabelRef = useRef<HTMLInputElement>(null)
 
-  // ── Bottom sheet state (recurring) ────────────────────────────
-  const [recurringSheet, setRecurringSheet] = useState<RecurringSheetState>({
-    open: false, editingId: null, rateType: 'day_rate',
-    label: '', amount: '', quantity: '', frequency: 'per_day', occurrences: '',
-  })
-  const recurringSheetLabelRef = useRef<HTMLInputElement>(null)
-
   // ── Derived: live totals ─────────────────────────────────────
   const lineItems = useMemo<LineItem[]>(
     () => items.map(draftToLineItem),
@@ -215,28 +150,27 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
   )
 
   // ── Derived: recurring contract terms + live totals ───────────
+  // Scales the SAME `totals` breakdown above (one occurrence, e.g. one day
+  // on site) up through the contract cadence — no separate recurring
+  // pricing model or line-item set.
   const recurringTerms: RecurringContractTerms = useMemo(() => ({
-    weeks_per_year:       parseFloat(weeksPerYearStr)  || 0,
-    contract_term_months: parseFloat(contractTermStr)  || 0,
-  }), [weeksPerYearStr, contractTermStr])
-
-  const recurringLineItems = useMemo<RecurringLineItem[]>(
-    () => recurringItems.map(draftToRecurringLineItem),
-    [recurringItems],
-  )
+    days_per_week:        parseFloat(daysPerWeekStr)  || 0,
+    weeks_per_year:       parseFloat(weeksPerYearStr) || 0,
+    contract_term_months: parseFloat(contractTermStr) || 0,
+  }), [daysPerWeekStr, weeksPerYearStr, contractTermStr])
 
   const recurringBreakdown = useMemo(
-    () => calculateRecurringProposal(recurringLineItems, recurringTerms, rateCard),
-    [recurringLineItems, recurringTerms, rateCard],
+    () => calculateRecurringPeriods(totals, recurringTerms),
+    [totals, recurringTerms],
   )
 
   const recurringConfig: RecurringConfig = useMemo(() => ({
-    days_per_week:        parseFloat(daysPerWeekStr) || 0,
+    days_per_week:        recurringTerms.days_per_week,
     weeks_per_year:       recurringTerms.weeks_per_year,
     contract_term_months: recurringTerms.contract_term_months,
     notice_period_months: noticePeriodStr.trim() ? parseFloat(noticePeriodStr) || 0 : null,
     auto_renewal:         autoRenewal,
-  }), [daysPerWeekStr, recurringTerms, noticePeriodStr, autoRenewal])
+  }), [recurringTerms, noticePeriodStr, autoRenewal])
 
   // ── Sheet preview (total for just the item being entered) ────
   const sheetPreview = useMemo(() => {
@@ -252,20 +186,6 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
       rateCard,
     )
   }, [sheet, rateCard])
-
-  // ── Recurring sheet preview (cost/occurrence + per-year, for just the item being entered) ──
-  const recurringSheetPreview = useMemo(() => {
-    if (!recurringSheet.open) return null
-    const draft: RecurringLineItem = {
-      label:       recurringSheet.label,
-      rate_type:   recurringSheet.rateType,
-      amount:      parseFloat(recurringSheet.amount)      || 0,
-      quantity:    parseFloat(recurringSheet.quantity)    || 0,
-      frequency:   recurringSheet.frequency,
-      occurrences: parseFloat(recurringSheet.occurrences) || 0,
-    }
-    return calculateRecurringProposal([draft], recurringTerms, rateCard).items[0]
-  }, [recurringSheet, recurringTerms, rateCard])
 
   // ── Lock body scroll when sheet is open ─────────────────────
   useEffect(() => {
@@ -283,23 +203,6 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
     const t = setTimeout(() => sheetLabelRef.current?.focus(), 60)
     return () => clearTimeout(t)
   }, [sheet.open, sheet.type])
-
-  // ── Lock body scroll when the recurring sheet is open ────────
-  useEffect(() => {
-    if (recurringSheet.open) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => { document.body.style.overflow = '' }
-  }, [recurringSheet.open])
-
-  // ── Auto-focus recurring sheet label input after animation starts ──
-  useEffect(() => {
-    if (!recurringSheet.open) return
-    const t = setTimeout(() => recurringSheetLabelRef.current?.focus(), 60)
-    return () => clearTimeout(t)
-  }, [recurringSheet.open, recurringSheet.rateType])
 
   // ── Client helpers ───────────────────────────────────────────
   const filteredClients = useMemo(() => {
@@ -375,59 +278,9 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
     closeSheet()
   }
 
-  // ── Recurring sheet helpers ────────────────────────────────────
-  function openAddRecurringSheet(rateType: RecurringRateType) {
-    setRecurringSheet(blankRecurringSheet(rateType))
-  }
-
-  function openEditRecurringSheet(item: RecurringDraftItem) {
-    setRecurringSheet({
-      open: true, editingId: item.id, rateType: item.rateType, label: item.label,
-      amount:      item.amount > 0      ? String(item.amount)      : '',
-      quantity:    item.quantity > 0    ? String(item.quantity)    : '',
-      frequency:   item.frequency,
-      occurrences: item.occurrences > 0 ? String(item.occurrences) : '',
-    })
-  }
-
-  function closeRecurringSheet() {
-    setRecurringSheet(s => ({ ...s, open: false }))
-  }
-
-  function commitRecurringSheet() {
-    const amount      = parseFloat(recurringSheet.amount)      || 0
-    const quantity    = parseFloat(recurringSheet.quantity)    || 0
-    const occurrences = parseFloat(recurringSheet.occurrences) || 0
-    if (!recurringSheet.label.trim() || amount <= 0 || occurrences <= 0) return
-
-    const draft: RecurringDraftItem = {
-      id:          recurringSheet.editingId ?? crypto.randomUUID(),
-      label:       recurringSheet.label.trim(),
-      rateType:    recurringSheet.rateType,
-      amount, quantity, occurrences,
-      frequency:   recurringSheet.frequency,
-    }
-
-    if (recurringSheet.editingId) {
-      setRecurringItems(prev => prev.map(i => i.id === recurringSheet.editingId ? draft : i))
-    } else {
-      setRecurringItems(prev => [...prev, draft])
-    }
-    closeRecurringSheet()
-  }
-
-  function deleteRecurringItem(id: string) {
-    setRecurringItems(prev => prev.filter(i => i.id !== id))
-  }
-
-  function deleteFromRecurringSheet() {
-    if (recurringSheet.editingId) deleteRecurringItem(recurringSheet.editingId)
-    closeRecurringSheet()
-  }
-
   // ── Save to Supabase ──────────────────────────────────────────
   async function handleSave() {
-    if (quoteType === 'one_off' && items.length === 0) return
+    if (items.length === 0) return
     if (quoteType === 'recurring' && !canSaveRecurring) return
     setSaving(true)
     setSaveError(null)
@@ -449,60 +302,35 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
         clientId = c.id
       }
 
-      if (quoteType === 'one_off') {
-        // Insert job
-        const validItems = items.filter(i => i.label.trim())
-        const { data: job, error: je } = await supabase
-          .from('jobs')
-          .insert({
-            owner_id:   ownerId,
-            client_id:  clientId,
-            title:      jobTitle.trim() || 'Untitled job',
-            status:     'draft',
-            quote_type: 'one_off',
-            line_items: validItems.map(draftToLineItem),
-          })
-          .select('id')
-          .single()
-        if (je) throw je
+      // Same line items, same job insert shape for both quote types — only
+      // the extra recurring_config differs.
+      const validItems = items.filter(i => i.label.trim())
+      const { data: job, error: je } = await supabase
+        .from('jobs')
+        .insert({
+          owner_id:   ownerId,
+          client_id:  clientId,
+          title:      jobTitle.trim() || (quoteType === 'one_off' ? 'Untitled job' : 'Untitled contract'),
+          status:     'draft',
+          quote_type: quoteType,
+          line_items: validItems.map(draftToLineItem),
+          ...(quoteType === 'recurring' ? { recurring_config: recurringConfig } : {}),
+        })
+        .select('id')
+        .single()
+      if (je) throw je
 
-        // Insert proposal — store totals without the items array (those live in jobs.line_items)
-        const { items: _items, ...moneyBreakdown } = calculateProposal(validItems.map(draftToLineItem), rateCard)
-        const { error: pe } = await supabase
-          .from('proposals')
-          .insert({ owner_id: ownerId, job_id: job.id, computed_totals: moneyBreakdown })
-        if (pe) throw pe
+      // Insert proposal — store totals without the items array (those live in jobs.line_items).
+      // For a recurring quote this is still the cost of ONE occurrence — the
+      // contract-terms multiplication is derived live from recurring_config, never stored.
+      const { items: _items, ...moneyBreakdown } = calculateProposal(validItems.map(draftToLineItem), rateCard)
+      const { error: pe } = await supabase
+        .from('proposals')
+        .insert({ owner_id: ownerId, job_id: job.id, computed_totals: moneyBreakdown })
+      if (pe) throw pe
 
-        router.push(`/quotes/${job.id}`)
-        router.refresh()
-      } else {
-        // Recurring: priced from recurring_line_items + recurring_config, not line_items.
-        const validRecurringItems = recurringItems.filter(i => i.label.trim())
-        const { data: job, error: je } = await supabase
-          .from('jobs')
-          .insert({
-            owner_id:              ownerId,
-            client_id:             clientId,
-            title:                 jobTitle.trim() || 'Untitled contract',
-            status:                 'draft',
-            quote_type:             'recurring',
-            line_items:             [],
-            recurring_config:       recurringConfig,
-            recurring_line_items:   validRecurringItems.map(draftToRecurringLineItem),
-          })
-          .select('id')
-          .single()
-        if (je) throw je
-
-        const breakdown = calculateRecurringProposal(validRecurringItems.map(draftToRecurringLineItem), recurringTerms, rateCard)
-        const { error: pe } = await supabase
-          .from('proposals')
-          .insert({ owner_id: ownerId, job_id: job.id, computed_totals: breakdown })
-        if (pe) throw pe
-
-        router.push(`/quotes/${job.id}`)
-        router.refresh()
-      }
+      router.push(`/quotes/${job.id}`)
+      router.refresh()
     } catch (err) {
       // Supabase returns plain objects {code, message, hint}, not Error instances.
       // Fall through the chain to get the most useful message available.
@@ -517,11 +345,11 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
   }
 
   const canSaveRecurring =
-    recurringItems.length > 0 &&
+    recurringTerms.days_per_week > 0 &&
     recurringTerms.weeks_per_year > 0 &&
     recurringTerms.contract_term_months > 0
 
-  const canSave = !saving && (quoteType === 'one_off' ? items.length > 0 : canSaveRecurring)
+  const canSave = !saving && items.length > 0 && (quoteType === 'one_off' || canSaveRecurring)
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
@@ -668,8 +496,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
           )}
         </section>
 
-        {/* ── LINE ITEMS (one-off only — unchanged) ─────────────── */}
-        {quoteType === 'one_off' && (
+        {/* ── LINE ITEMS (shared by both quote types) ───────────── */}
         <section>
           {items.length > 0 && (
             <div className="flex flex-col gap-2.5 mb-3">
@@ -687,7 +514,9 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
 
           {items.length === 0 && (
             <p className="text-center text-sm text-muted py-6">
-              Add at least one item below to build your quote.
+              {quoteType === 'one_off'
+                ? 'Add at least one item below to build your quote.'
+                : 'Add at least one item below to price this contract (e.g. a day rate as a fixed line, or hourly labour).'}
             </p>
           )}
 
@@ -710,55 +539,11 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
             })}
           </div>
         </section>
-        )}
 
         {/* Rate card note — visible on mobile only */}
-        {quoteType === 'one_off' && (
         <p className="mt-4 text-center text-xs text-muted sm:hidden">
           Labour €{rateCard.labour_rate_per_hour}/hr · Materials +{rateCard.material_markup_percent}% · VAT {rateCard.vat_percent}%
         </p>
-        )}
-
-        {/* ── RECURRING LINE ITEMS ──────────────────────────────── */}
-        {quoteType === 'recurring' && (
-        <section>
-          {recurringItems.length > 0 && (
-            <div className="flex flex-col gap-2.5 mb-3">
-              {recurringItems.map(item => (
-                <RecurringItemCard
-                  key={item.id}
-                  item={item}
-                  onEdit={() => openEditRecurringSheet(item)}
-                  onDelete={() => deleteRecurringItem(item.id)}
-                />
-              ))}
-            </div>
-          )}
-
-          {recurringItems.length === 0 && (
-            <p className="text-center text-sm text-muted py-6">
-              Add at least one line item below to price this contract (e.g. a day rate, an hourly extra-work rate, or a fixed monthly fee).
-            </p>
-          )}
-
-          {/* ── Three add buttons ───────────────────────────── */}
-          <div className="grid grid-cols-3 gap-2">
-            {(['day_rate', 'hourly', 'fixed_per_period'] as const).map(rateType => {
-              const cfg = RECURRING_RATE_TYPE_CFG[rateType]
-              return (
-                <button
-                  key={rateType}
-                  onClick={() => openAddRecurringSheet(rateType)}
-                  className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-dashed border-border hover:border-teal-500 hover:bg-teal-100 hover:text-teal-700 text-muted transition active:scale-95"
-                >
-                  <RecurringTypeIcon rateType={rateType} />
-                  <span className="text-xs font-semibold leading-tight text-center">+ {cfg.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        </section>
-        )}
 
         {/* ── RECURRING CONTRACT TERMS ───────────────────────── */}
         {quoteType === 'recurring' && (
@@ -768,7 +553,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
           </div>
           <div className="p-4 flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
-              <RField label="Days / week (for reference)">
+              <RField label="Days / week">
                 <input
                   type="number" inputMode="decimal" min="0" max="7" step="1"
                   value={daysPerWeekStr}
@@ -826,7 +611,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
         )}
 
         {/* ── RECURRING LIVE SUMMARY ─────────────────────────── */}
-        {quoteType === 'recurring' && recurringItems.length > 0 && (
+        {quoteType === 'recurring' && items.length > 0 && (
         <section className="bg-white rounded-2xl border border-border mb-4 overflow-hidden">
           <div className="px-4 py-3 border-b border-border">
             <span className="text-xs font-semibold text-muted uppercase tracking-wide">Pricing summary</span>
@@ -969,16 +754,6 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
         onChange={patch => setSheet(s => ({ ...s, ...patch }))}
       />
 
-      {/* ── BOTTOM SHEET (recurring) ─────────────────────────── */}
-      <RecurringAddItemSheet
-        sheet={recurringSheet}
-        preview={recurringSheetPreview}
-        labelRef={recurringSheetLabelRef}
-        onClose={closeRecurringSheet}
-        onCommit={commitRecurringSheet}
-        onDelete={deleteFromRecurringSheet}
-        onChange={patch => setRecurringSheet(s => ({ ...s, ...patch }))}
-      />
     </div>
   )
 }
@@ -1019,76 +794,6 @@ function ItemCard({
         {/* Line total + delete */}
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-sm font-bold text-teal-500">{formatEuro(total)}</span>
-          <button
-            onClick={e => { e.stopPropagation(); onDelete() }}
-            className="text-muted hover:text-red-500 transition p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
-            aria-label="Delete item"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </button>
-  )
-}
-
-// ─── RecurringItemCard ────────────────────────────────────────────────────────
-
-function RecurringTypeIcon({ rateType }: { rateType: RecurringRateType }) {
-  if (rateType === 'day_rate') {
-    return (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-      </svg>
-    )
-  }
-  if (rateType === 'hourly') {
-    return (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-      </svg>
-    )
-  }
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185Z" />
-    </svg>
-  )
-}
-
-const RECURRING_TYPE_DOT: Record<RecurringRateType, string> = {
-  day_rate: 'bg-amber-400', hourly: 'bg-blue-400', fixed_per_period: 'bg-purple-400',
-}
-
-function RecurringItemCard({
-  item, onEdit, onDelete,
-}: {
-  item:     RecurringDraftItem
-  onEdit:   () => void
-  onDelete: () => void
-}) {
-  const cfg = RECURRING_RATE_TYPE_CFG[item.rateType]
-  const freqCfg = FREQUENCY_CFG[item.frequency]
-
-  return (
-    <button
-      onClick={onEdit}
-      className="w-full bg-white rounded-2xl border border-border p-4 text-left hover:border-teal-500 transition active:scale-[0.99] group"
-    >
-      <div className="flex items-start gap-3">
-        <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${RECURRING_TYPE_DOT[item.rateType]}`} />
-
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-on-surface text-sm leading-snug truncate">{item.label}</p>
-          <p className="text-xs text-muted mt-0.5">
-            {cfg.label} · {formatEuro(item.amount)}{item.rateType === 'day_rate' ? '/day' : item.rateType === 'hourly' ? '/hr' : ''}
-            {' · '}{item.occurrences} {freqCfg.occurrencesLabel.toLowerCase()}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={e => { e.stopPropagation(); onDelete() }}
             className="text-muted hover:text-red-500 transition p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -1301,190 +1006,6 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
           </div>
 
           {/* Action buttons */}
-          <button
-            onClick={onCommit}
-            disabled={!valid}
-            className="w-full h-13 rounded-xl bg-teal-500 text-white font-semibold text-base hover:bg-teal-700 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {isEditing ? 'Update item' : `Add ${cfg.label.toLowerCase()} to quote`}
-          </button>
-
-          {isEditing && (
-            <button
-              onClick={onDelete}
-              className="w-full mt-2 h-11 rounded-xl text-red-500 text-sm font-semibold hover:bg-red-50 transition"
-            >
-              Delete this item
-            </button>
-          )}
-        </div>
-      </div>
-    </>
-  )
-}
-
-// ─── RecurringAddItemSheet ─────────────────────────────────────────────────────
-
-interface RecurringPricedItemPreview {
-  cost_per_occurrence: number
-  per_month:           number
-  per_year:            number
-}
-
-interface RecurringSheetProps {
-  sheet:    RecurringSheetState
-  preview:  RecurringPricedItemPreview | null
-  labelRef: React.RefObject<HTMLInputElement | null>
-  onClose:  () => void
-  onCommit: () => void
-  onDelete: () => void
-  onChange: (patch: Partial<RecurringSheetState>) => void
-}
-
-function RecurringAddItemSheet({ sheet, preview, labelRef, onClose, onCommit, onDelete, onChange }: RecurringSheetProps) {
-  const cfg       = RECURRING_RATE_TYPE_CFG[sheet.rateType]
-  const isEditing = sheet.editingId !== null
-  const amount      = parseFloat(sheet.amount)      || 0
-  const occurrences = parseFloat(sheet.occurrences) || 0
-  const valid = sheet.label.trim().length > 0 && amount > 0 && occurrences > 0
-
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') { e.preventDefault(); if (valid) onCommit() }
-    if (e.key === 'Escape') onClose()
-  }
-
-  return (
-    <>
-      <div
-        className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 ${
-          sheet.open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={onClose}
-      />
-
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl transition-transform duration-300 ease-out max-h-[92dvh] overflow-y-auto ${
-          sheet.open ? 'translate-y-0 pointer-events-auto' : 'translate-y-full pointer-events-none'
-        }`}
-        style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
-      >
-        <div className="w-10 h-1 bg-border rounded-full mx-auto mt-3" />
-
-        <div className="px-5 pt-5 pb-2 max-w-lg mx-auto">
-
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center border bg-surface border-border text-on-surface">
-                <RecurringTypeIcon rateType={sheet.rateType} />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-on-surface">
-                  {isEditing ? `Edit ${cfg.label.toLowerCase()}` : `Add ${cfg.label.toLowerCase()}`}
-                </p>
-                <p className="text-xs text-muted">
-                  {sheet.rateType === 'day_rate'
-                    ? 'Flat price for the day — hours/day is shown for reference only'
-                    : sheet.rateType === 'hourly'
-                    ? 'Rate × hours for each occurrence'
-                    : 'Flat fee each time it bills'}
-                </p>
-              </div>
-            </div>
-            <button onClick={onClose} className="text-muted hover:text-on-surface transition p-1">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Label */}
-          <div className="mb-3">
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">Description</label>
-            <input
-              ref={labelRef}
-              type="text"
-              value={sheet.label}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => onChange({ label: e.target.value })}
-              onKeyDown={onKeyDown}
-              placeholder="e.g. Cleaning first floor incl. OR complex"
-              className="w-full h-13 rounded-xl border border-border bg-white px-4 py-3 text-base text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
-            />
-          </div>
-
-          {/* Amount + quantity */}
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">{cfg.amountLabel}</label>
-              <input
-                type="number" inputMode="decimal" min="0" step="0.01"
-                value={sheet.amount}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => onChange({ amount: e.target.value })}
-                onKeyDown={onKeyDown}
-                placeholder="0.00"
-                className="w-full h-13 rounded-xl border border-border bg-white px-4 py-3 text-lg font-semibold text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">{cfg.quantityLabel}</label>
-              <input
-                type="number" inputMode="decimal" min="0" step="0.5"
-                value={sheet.quantity}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => onChange({ quantity: e.target.value })}
-                onKeyDown={onKeyDown}
-                placeholder="0"
-                className="w-full h-13 rounded-xl border border-border bg-white px-4 py-3 text-lg font-semibold text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
-              />
-            </div>
-          </div>
-
-          {/* Frequency picker */}
-          <div className="mb-3">
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">Bills</label>
-            <div className="grid grid-cols-4 gap-2">
-              {(['per_day', 'per_week', 'per_month', 'per_year'] as const).map(freq => (
-                <button
-                  key={freq}
-                  onClick={() => onChange({ frequency: freq })}
-                  className="h-11 rounded-xl text-xs font-semibold border-2 transition active:scale-95"
-                  style={
-                    sheet.frequency === freq
-                      ? { backgroundColor: ACCENT, borderColor: ACCENT, color: '#fff' }
-                      : { backgroundColor: '#fff', borderColor: 'var(--color-border)', color: 'var(--color-muted)' }
-                  }
-                >
-                  {FREQUENCY_CFG[freq].label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Occurrences */}
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
-              {FREQUENCY_CFG[sheet.frequency].occurrencesLabel}
-            </label>
-            <input
-              type="number" inputMode="decimal" min="0" step="1"
-              value={sheet.occurrences}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => onChange({ occurrences: e.target.value })}
-              onKeyDown={onKeyDown}
-              placeholder="0"
-              className="w-full h-13 rounded-xl border border-border bg-white px-4 py-3 text-lg font-semibold text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
-            />
-          </div>
-
-          {/* Live preview */}
-          <div className={`flex flex-col gap-1 rounded-xl px-4 py-3 mb-5 ${valid ? 'bg-teal-100' : 'bg-surface border border-border'}`}>
-            <div className="flex items-center justify-between">
-              <span className={`text-sm font-medium ${valid ? 'text-teal-700' : 'text-muted'}`}>Per occurrence</span>
-              <span className={`text-lg font-bold ${valid ? 'text-teal-500' : 'text-muted'}`}>{formatEuro(preview?.cost_per_occurrence ?? 0)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className={`text-xs ${valid ? 'text-teal-700' : 'text-muted'}`}>Per year (ex. VAT)</span>
-              <span className={`text-sm font-semibold ${valid ? 'text-teal-700' : 'text-muted'}`}>{formatEuro(preview?.per_year ?? 0)}</span>
-            </div>
-          </div>
-
           <button
             onClick={onCommit}
             disabled={!valid}

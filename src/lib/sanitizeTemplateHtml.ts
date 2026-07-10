@@ -8,7 +8,10 @@
  * <embed>/<form>, and javascript: URLs. SERVER-ONLY.
  */
 import sanitizeHtml from 'sanitize-html'
-import { extractLineItemsRegion, reinsertLineItemsRegion } from '@/lib/htmlTemplate'
+import {
+  extractLineItemsRegion, reinsertLineItemsRegion,
+  extractRecurringRegion, reinsertRecurringRegion,
+} from '@/lib/htmlTemplate'
 
 const ALLOWED_TAGS = [
   'html', 'head', 'meta', 'title', 'style', 'body',
@@ -49,18 +52,27 @@ function runSanitize(html: string): string {
 
 /**
  * sanitize-html strips HTML comments unconditionally, which would destroy
- * the LINE_ITEMS_START/END markers a template relies on — so the region is
- * pulled out (see extractLineItemsRegion) before sanitizing and both
- * pieces are sanitized independently, then reassembled with real comments
- * restored. Safe to call more than once on the same input (e.g. once on
- * upload, again on save) — a template with no LINE_ITEMS region at all
- * just skips straight to a plain sanitize.
+ * the LINE_ITEMS_START/END and RECURRING_START/END markers a template
+ * relies on — so both regions are pulled out (see extractLineItemsRegion /
+ * extractRecurringRegion) before sanitizing, sanitized independently, then
+ * reassembled with real comments restored. Safe to call more than once on
+ * the same input (e.g. once on upload, again on save) — a template missing
+ * either region just skips that extraction step.
  */
 export function sanitizeTemplateHtml(html: string): string {
-  const extracted = extractLineItemsRegion(html)
-  if (!extracted) return runSanitize(html)
+  const lineItems = extractLineItemsRegion(html)
+  const afterLineItems = lineItems ? lineItems.outerWithPlaceholder : html
 
-  const sanitizedOuter = runSanitize(extracted.outerWithPlaceholder)
-  const sanitizedRow = runSanitize(extracted.rowTemplate)
-  return reinsertLineItemsRegion(sanitizedOuter, sanitizedRow)
+  const recurring = extractRecurringRegion(afterLineItems)
+  const outer = recurring ? recurring.outerWithPlaceholder : afterLineItems
+
+  let sanitizedOuter = runSanitize(outer)
+
+  if (recurring) {
+    sanitizedOuter = reinsertRecurringRegion(sanitizedOuter, runSanitize(recurring.innerTemplate))
+  }
+  if (lineItems) {
+    sanitizedOuter = reinsertLineItemsRegion(sanitizedOuter, runSanitize(lineItems.rowTemplate))
+  }
+  return sanitizedOuter
 }

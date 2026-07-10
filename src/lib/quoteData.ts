@@ -4,8 +4,8 @@
  */
 
 import { createClient } from './supabase/server'
-import { calculateProposal, calculateRecurringProposal } from './pricing'
-import type { ProposalBreakdown, RecurringBreakdown } from './pricing'
+import { calculateProposal, calculateRecurringPeriods } from './pricing'
+import type { ProposalBreakdown, RecurringPeriods } from './pricing'
 import type { Job, Client, Proposal, RateCard } from './types'
 import { EMPTY_BRANDING } from './types'
 
@@ -27,10 +27,15 @@ export interface QuoteExportData {
     | 'template_html'
     | 'prices_shown_excluding_vat'
   >
-  /** Full priced breakdown from the one-off pricing engine (per-item + totals). Always computed — harmlessly all-zero for a recurring job, since job.line_items is empty for those. */
+  /**
+   * The ONE pricing calculation, from job.line_items — used by BOTH quote
+   * types identically. For a recurring quote this represents the cost of
+   * one occurrence (e.g. one day on site); recurringPeriods below scales it
+   * up by the contract terms.
+   */
   breakdown: ProposalBreakdown
-  /** Recurring pricing engine's breakdown — null for one-off jobs, computed from job.recurring_line_items + job.recurring_config for recurring ones. */
-  recurringBreakdown: RecurringBreakdown | null
+  /** Derived from `breakdown` + job.recurring_config — null for one-off jobs. */
+  recurringPeriods: RecurringPeriods | null
   shareUrl: string
   /**
    * Stable per-contractor sequence number for this proposal (1, 2, 3, ...),
@@ -99,17 +104,14 @@ export async function getQuoteExportData(
     rc,
   )
 
-  // Recurring jobs price from their own line items + contract terms instead —
+  // Recurring jobs scale that SAME breakdown up by the contract terms —
   // null for one-off jobs so callers can tell the two apart unambiguously.
-  const recurringBreakdown = job.quote_type === 'recurring'
-    ? calculateRecurringProposal(
-        (job.recurring_line_items ?? []) as Parameters<typeof calculateRecurringProposal>[0],
-        {
-          weeks_per_year:       job.recurring_config?.weeks_per_year ?? 0,
-          contract_term_months: job.recurring_config?.contract_term_months ?? 0,
-        },
-        rc,
-      )
+  const recurringPeriods = job.quote_type === 'recurring'
+    ? calculateRecurringPeriods(breakdown, {
+        days_per_week:        job.recurring_config?.days_per_week ?? 0,
+        weeks_per_year:       job.recurring_config?.weeks_per_year ?? 0,
+        contract_term_months: job.recurring_config?.contract_term_months ?? 0,
+      })
     : null
 
   const shareUrl = proposal?.share_token
@@ -131,7 +133,7 @@ export async function getQuoteExportData(
     proposal: proposal  as Proposal | null,
     rateCard: rc,
     breakdown,
-    recurringBreakdown,
+    recurringPeriods,
     shareUrl,
     quoteSequence,
   }

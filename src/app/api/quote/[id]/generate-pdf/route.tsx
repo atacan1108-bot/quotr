@@ -54,11 +54,10 @@ export async function POST(
     return NextResponse.json({ error: 'This quote doesn\'t have a saved proposal yet.' }, { status: 400 })
   }
 
-  // Guard: never render a PDF from zero line items — this is what silently
-  // produced a blank/contentless PDF for recurring quotes before they had
-  // their own line items to price from.
+  // Guard: never render a PDF from zero line items — one-off and recurring
+  // quotes share the exact same job.line_items source now.
   const isRecurring   = data.job.quote_type === 'recurring'
-  const lineItemCount = isRecurring ? (data.job.recurring_line_items?.length ?? 0) : data.job.line_items.length
+  const lineItemCount = data.job.line_items.length
   if (lineItemCount === 0) {
     return NextResponse.json(
       { error: 'Add at least one line item before generating a PDF.' },
@@ -88,7 +87,7 @@ export async function POST(
   if (data.rateCard.template_html) {
     try {
       // Stage (d): replace {{tokens}} and expand the line-item region.
-      const { data: templateData, items } = buildTemplateData(data)
+      const { data: templateData, items, isRecurring: isRecurringData } = buildTemplateData(data)
       console.log('generate-pdf: built template data', { ...logCtx, itemCount: items.length })
       if (items.length === 0) {
         // Should be unreachable — the lineItemCount guard above already
@@ -97,7 +96,7 @@ export async function POST(
         throw new Error('No line items were passed to the template — refusing to render an empty quote.')
       }
 
-      const filledHtml = fillTemplate(data.rateCard.template_html, templateData, items)
+      const filledHtml = fillTemplate(data.rateCard.template_html, templateData, items, isRecurringData)
       console.log('generate-pdf: filled template HTML', { ...logCtx, filledHtmlLength: filledHtml.length })
       if (!filledHtml.trim()) {
         throw new Error('Token replacement produced empty HTML — the uploaded template may be malformed.')
