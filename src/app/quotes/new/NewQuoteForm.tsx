@@ -6,8 +6,8 @@ import {
 } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { calculateProposal, calculateRecurringPeriods, itemTotal, formatEuro } from '@/lib/pricing'
-import type { LineItem, ProposalBreakdown, RecurringContractTerms } from '@/lib/pricing'
+import { calculateProposal, calculateRecurringPeriods, itemTotal, formatEuro, recurringRateItemText, effectiveHourlyRate } from '@/lib/pricing'
+import type { LineItem, ProposalBreakdown, RecurringContractTerms, RecurringRateType } from '@/lib/pricing'
 import type { QuoteType, RecurringConfig } from '@/lib/types'
 
 // ─── Prop types ───────────────────────────────────────────────────────────────
@@ -34,6 +34,11 @@ interface DraftItem {
   id:        string
   label:     string
   type:      LineItem['type']
+  // Recurring quotes only — when set, this item is a rate_type item
+  // (Daily rate / Hourly rate / Fixed) rather than a one-off labour/
+  // material/fixed item. Same DraftItem, same array, same storage either
+  // way — see draftToLineItem.
+  rateType?: RecurringRateType
   quantity:  number   // hours for labour, units for others
   unit_cost: number   // 0 for labour (rate from rateCard); cost/unit for others
 }
@@ -43,23 +48,32 @@ interface SheetState {
   open:      boolean
   editingId: string | null   // null = new item
   type:      LineItem['type']
+  rateType:  RecurringRateType | null
   label:     string
   qty:       string           // kept as string so inputs stay editable
   unitCost:  string
 }
 
-function blankSheet(type: LineItem['type']): SheetState {
-  return { open: true, editingId: null, type, label: '', qty: '', unitCost: '' }
-}
-
 function draftToLineItem(d: DraftItem): LineItem {
   return {
-    label:     d.label,
-    type:      d.type,
-    quantity:  d.quantity,
-    unit_cost: d.unit_cost,
-    hours:     d.type === 'labour' ? d.quantity : undefined,
+    label:      d.label,
+    type:       d.rateType ? 'fixed' : d.type,
+    quantity:   d.quantity,
+    unit_cost:  d.unit_cost,
+    hours:      !d.rateType && d.type === 'labour' ? d.quantity : undefined,
+    rate_type:  d.rateType,
   }
+}
+
+/** day_rate is valid without a quantity (hours/day is reference-only);
+ * every other type/rate_type needs a positive quantity. Shared by
+ * commitSheet and AddItemSheet so the two can never disagree. */
+function sheetIsValid(sheet: SheetState): boolean {
+  if (!sheet.label.trim()) return false
+  const qty  = parseFloat(sheet.qty)      || 0
+  const cost = parseFloat(sheet.unitCost) || 0
+  if (sheet.rateType === 'day_rate') return cost > 0
+  return qty > 0
 }
 
 // ─── Per-type display config ──────────────────────────────────────────────────
@@ -72,6 +86,7 @@ const ITEM_CFG = {
     qtyLabel:  'Hours',
     qtyStep:   '0.5',
     showCost:  false,
+    costLabel: '',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -79,12 +94,13 @@ const ITEM_CFG = {
     ),
   },
   material: {
-    label:    'Material',
-    color:    'bg-blue-50 border-blue-200 text-blue-700',
-    dot:      'bg-blue-400',
-    qtyLabel: 'Qty',
-    qtyStep:  '1',
-    showCost: true,
+    label:     'Material',
+    color:     'bg-blue-50 border-blue-200 text-blue-700',
+    dot:       'bg-blue-400',
+    qtyLabel:  'Qty',
+    qtyStep:   '1',
+    showCost:  true,
+    costLabel: 'Cost / unit (€)',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
@@ -92,12 +108,62 @@ const ITEM_CFG = {
     ),
   },
   fixed: {
-    label:    'Fixed',
-    color:    'bg-purple-50 border-purple-200 text-purple-700',
-    dot:      'bg-purple-400',
-    qtyLabel: 'Qty',
-    qtyStep:  '1',
-    showCost: true,
+    label:     'Fixed',
+    color:     'bg-purple-50 border-purple-200 text-purple-700',
+    dot:       'bg-purple-400',
+    qtyLabel:  'Qty',
+    qtyStep:   '1',
+    showCost:  true,
+    costLabel: 'Price each (€)',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185Z" />
+      </svg>
+    ),
+  },
+} as const
+
+// ─── Per-rate-type display config (recurring quotes only) ─────────────────────
+// Same DraftItem/AddItemSheet machinery as ITEM_CFG above — this is a
+// second config table, not a second line-item system.
+
+const RATE_TYPE_CFG = {
+  day_rate: {
+    label:     'Daily rate',
+    color:     'bg-amber-50 border-amber-200 text-amber-700',
+    dot:       'bg-amber-400',
+    qtyLabel:  'Hours/day (reference)',
+    qtyStep:   '0.5',
+    showCost:  true,
+    costLabel: 'Day rate (€)',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+      </svg>
+    ),
+  },
+  hourly: {
+    label:     'Hourly rate',
+    color:     'bg-blue-50 border-blue-200 text-blue-700',
+    dot:       'bg-blue-400',
+    qtyLabel:  'Hours',
+    qtyStep:   '0.5',
+    showCost:  true,
+    costLabel: 'Hourly rate (€)',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+      </svg>
+    ),
+  },
+  fixed: {
+    label:     'Fixed',
+    color:     'bg-purple-50 border-purple-200 text-purple-700',
+    dot:       'bg-purple-400',
+    qtyLabel:  'Qty',
+    qtyStep:   '1',
+    showCost:  true,
+    costLabel: 'Amount (€)',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185Z" />
@@ -132,9 +198,9 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
   const [newClientPhone,  setNewClientPhone]  = useState('')
   const [clientListOpen,  setClientListOpen]  = useState(false)
 
-  // ── Bottom sheet state (one-off) ──────────────────────────────
+  // ── Bottom sheet state (shared by one-off and recurring items) ─
   const [sheet, setSheet] = useState<SheetState>({
-    open: false, editingId: null, type: 'labour',
+    open: false, editingId: null, type: 'labour', rateType: null,
     label: '', qty: '', unitCost: '',
   })
   const sheetLabelRef = useRef<HTMLInputElement>(null)
@@ -177,11 +243,12 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
     if (!sheet.open) return null
     return itemTotal(
       {
-        label:     sheet.label,
-        type:      sheet.type,
-        quantity:  parseFloat(sheet.qty)      || 0,
-        unit_cost: parseFloat(sheet.unitCost) || 0,
-        hours:     sheet.type === 'labour' ? parseFloat(sheet.qty) || 0 : undefined,
+        label:      sheet.label,
+        type:       sheet.rateType ? 'fixed' : sheet.type,
+        quantity:   parseFloat(sheet.qty)      || 0,
+        unit_cost:  parseFloat(sheet.unitCost) || 0,
+        hours:      !sheet.rateType && sheet.type === 'labour' ? parseFloat(sheet.qty) || 0 : undefined,
+        rate_type:  sheet.rateType ?? undefined,
       },
       rateCard,
     )
@@ -202,7 +269,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
     if (!sheet.open) return
     const t = setTimeout(() => sheetLabelRef.current?.focus(), 60)
     return () => clearTimeout(t)
-  }, [sheet.open, sheet.type])
+  }, [sheet.open, sheet.type, sheet.rateType])
 
   // ── Client helpers ───────────────────────────────────────────
   const filteredClients = useMemo(() => {
@@ -229,7 +296,11 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
 
   // ── Sheet helpers ─────────────────────────────────────────────
   function openAddSheet(type: LineItem['type']) {
-    setSheet(blankSheet(type))
+    setSheet({ open: true, editingId: null, type, rateType: null, label: '', qty: '', unitCost: '' })
+  }
+
+  function openAddRecurringSheet(rateType: RecurringRateType) {
+    setSheet({ open: true, editingId: null, type: 'fixed', rateType, label: '', qty: '', unitCost: '' })
   }
 
   function openEditSheet(item: DraftItem) {
@@ -237,6 +308,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
       open:      true,
       editingId: item.id,
       type:      item.type,
+      rateType:  item.rateType ?? null,
       label:     item.label,
       qty:       item.quantity > 0  ? String(item.quantity)  : '',
       unitCost:  item.unit_cost > 0 ? String(item.unit_cost) : '',
@@ -249,14 +321,15 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
 
   // ── Commit sheet → add or update item ─────────────────────────
   function commitSheet() {
+    if (!sheetIsValid(sheet)) return
     const qty  = parseFloat(sheet.qty)      || 0
     const cost = parseFloat(sheet.unitCost) || 0
-    if (!sheet.label.trim() || qty <= 0) return
 
     const draft: DraftItem = {
       id:        sheet.editingId ?? crypto.randomUUID(),
       label:     sheet.label.trim(),
       type:      sheet.type,
+      rateType:  sheet.rateType ?? undefined,
       quantity:  qty,
       unit_cost: cost,
     }
@@ -516,34 +589,54 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
             <p className="text-center text-sm text-muted py-6">
               {quoteType === 'one_off'
                 ? 'Add at least one item below to build your quote.'
-                : 'Add at least one item below to price this contract (e.g. a day rate as a fixed line, or hourly labour).'}
+                : 'Add at least one item below to price this contract (a daily rate, an hourly rate, or a fixed fee).'}
             </p>
           )}
 
-          {/* ── Three add buttons ───────────────────────────── */}
+          {/* ── Three add buttons — labour/material/fixed for a one-off
+                 job, daily/hourly/fixed rate for a recurring contract.
+                 Same DraftItem, same array, same sheet either way. ── */}
           <div className="grid grid-cols-3 gap-2">
-            {(['labour', 'material', 'fixed'] as const).map(type => {
-              const cfg = ITEM_CFG[type]
-              return (
-                <button
-                  key={type}
-                  onClick={() => openAddSheet(type)}
-                  className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-dashed border-border hover:border-teal-500 hover:bg-teal-100 hover:text-teal-700 text-muted transition active:scale-95"
-                >
-                  {cfg.icon}
-                  <span className="text-xs font-semibold leading-tight text-center">
-                    + {cfg.label}
-                  </span>
-                </button>
-              )
-            })}
+            {quoteType === 'one_off'
+              ? (['labour', 'material', 'fixed'] as const).map(type => {
+                  const cfg = ITEM_CFG[type]
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => openAddSheet(type)}
+                      className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-dashed border-border hover:border-teal-500 hover:bg-teal-100 hover:text-teal-700 text-muted transition active:scale-95"
+                    >
+                      {cfg.icon}
+                      <span className="text-xs font-semibold leading-tight text-center">
+                        + {cfg.label}
+                      </span>
+                    </button>
+                  )
+                })
+              : (['day_rate', 'hourly', 'fixed'] as const).map(rateType => {
+                  const cfg = RATE_TYPE_CFG[rateType]
+                  return (
+                    <button
+                      key={rateType}
+                      onClick={() => openAddRecurringSheet(rateType)}
+                      className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-dashed border-border hover:border-teal-500 hover:bg-teal-100 hover:text-teal-700 text-muted transition active:scale-95"
+                    >
+                      {cfg.icon}
+                      <span className="text-xs font-semibold leading-tight text-center">
+                        + {cfg.label}
+                      </span>
+                    </button>
+                  )
+                })}
           </div>
         </section>
 
-        {/* Rate card note — visible on mobile only */}
-        <p className="mt-4 text-center text-xs text-muted sm:hidden">
-          Labour €{rateCard.labour_rate_per_hour}/hr · Materials +{rateCard.material_markup_percent}% · VAT {rateCard.vat_percent}%
-        </p>
+        {/* Rate card note — one-off only (recurring rates are set per line, not from the rate card) */}
+        {quoteType === 'one_off' && (
+          <p className="mt-4 text-center text-xs text-muted sm:hidden">
+            Labour €{rateCard.labour_rate_per_hour}/hr · Materials +{rateCard.material_markup_percent}% · VAT {rateCard.vat_percent}%
+          </p>
+        )}
 
         {/* ── RECURRING CONTRACT TERMS ───────────────────────── */}
         {quoteType === 'recurring' && (
@@ -768,8 +861,11 @@ function ItemCard({
   onEdit:   () => void
   onDelete: () => void
 }) {
-  const cfg   = ITEM_CFG[item.type]
+  const cfg   = item.rateType ? RATE_TYPE_CFG[item.rateType] : ITEM_CFG[item.type]
   const total = itemTotal(draftToLineItem(item), rateCard)
+  const meta  = item.rateType
+    ? `${cfg.label} · ${recurringRateItemText(item.rateType, item.quantity, item.unit_cost).rateText}`
+    : `${cfg.label}${item.type === 'labour' ? ` · ${item.quantity} hr` : ` · ${item.quantity} × ${formatEuro(item.unit_cost)}`}`
 
   return (
     <button
@@ -783,12 +879,7 @@ function ItemCard({
         {/* Label + meta */}
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-on-surface text-sm leading-snug truncate">{item.label}</p>
-          <p className="text-xs text-muted mt-0.5 capitalize">
-            {cfg.label}
-            {item.type === 'labour'
-              ? ` · ${item.quantity} hr`
-              : ` · ${item.quantity} × ${formatEuro(item.unit_cost)}`}
-          </p>
+          <p className="text-xs text-muted mt-0.5">{meta}</p>
         </div>
 
         {/* Line total + delete */}
@@ -856,11 +947,12 @@ interface SheetProps {
 }
 
 function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, onDelete, onChange }: SheetProps) {
-  const cfg       = ITEM_CFG[sheet.type]
+  const cfg       = sheet.rateType ? RATE_TYPE_CFG[sheet.rateType] : ITEM_CFG[sheet.type]
   const isEditing = sheet.editingId !== null
   const qty       = parseFloat(sheet.qty)      || 0
   const cost      = parseFloat(sheet.unitCost) || 0
-  const valid     = sheet.label.trim().length > 0 && qty > 0
+  const valid     = sheetIsValid(sheet)
+  const dayRateEffectiveHourly = sheet.rateType === 'day_rate' ? effectiveHourlyRate(cost, qty) : null
 
   // Handle Enter key in inputs
   function onKeyDown(e: React.KeyboardEvent) {
@@ -905,10 +997,11 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
                   {isEditing ? `Edit ${cfg.label}` : `Add ${cfg.label}`}
                 </p>
                 <p className="text-xs text-muted">
-                  {sheet.type === 'labour'
-                    ? `€${rateCard.labour_rate_per_hour}/hr from rate card`
-                    : sheet.type === 'material'
-                    ? `+${rateCard.material_markup_percent}% markup applied`
+                  {sheet.rateType === 'day_rate' ? 'Flat amount for one day — hours/day is for reference only'
+                    : sheet.rateType === 'hourly' ? 'This rate × hours, for one occurrence'
+                    : sheet.rateType === 'fixed'  ? 'Fixed amount for one occurrence, no markup'
+                    : sheet.type === 'labour'     ? `€${rateCard.labour_rate_per_hour}/hr from rate card`
+                    : sheet.type === 'material'   ? `+${rateCard.material_markup_percent}% markup applied`
                     : 'Fixed price, no markup'}
                 </p>
               </div>
@@ -932,16 +1025,19 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
               onChange={(e: ChangeEvent<HTMLInputElement>) => onChange({ label: e.target.value })}
               onKeyDown={onKeyDown}
               placeholder={
-                sheet.type === 'labour'   ? 'e.g. Install solar panels…' :
-                sheet.type === 'material' ? 'e.g. 400W panel, cable…'   :
-                                            'e.g. Permit fee, delivery…'
+                sheet.rateType === 'day_rate' ? 'e.g. On-site supervision…' :
+                sheet.rateType === 'hourly'   ? 'e.g. Regular maintenance visit…' :
+                sheet.rateType === 'fixed'    ? 'e.g. Monthly service fee…' :
+                sheet.type === 'labour'       ? 'e.g. Install solar panels…' :
+                sheet.type === 'material'     ? 'e.g. 400W panel, cable…'   :
+                                                 'e.g. Permit fee, delivery…'
               }
               className="w-full h-13 rounded-xl border border-border bg-white px-4 py-3 text-base text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
             />
           </div>
 
           {/* Quantity + cost row */}
-          <div className={`grid gap-3 mb-4 ${sheet.type === 'labour' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          <div className={`grid gap-3 mb-4 ${cfg.showCost ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <div>
               <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
                 {cfg.qtyLabel}
@@ -962,7 +1058,7 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
             {cfg.showCost && (
               <div>
                 <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
-                  {sheet.type === 'material' ? 'Cost / unit (€)' : 'Price each (€)'}
+                  {cfg.costLabel}
                 </label>
                 <input
                   type="number"
@@ -980,7 +1076,7 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
           </div>
 
           {/* Material breakdown preview */}
-          {sheet.type === 'material' && qty > 0 && cost > 0 && (
+          {sheet.type === 'material' && !sheet.rateType && qty > 0 && cost > 0 && (
             <div className="bg-blue-50 rounded-xl px-4 py-2.5 mb-4 text-xs text-blue-700 space-y-1">
               <div className="flex justify-between">
                 <span>{qty} × {formatEuro(cost)}</span>
@@ -989,6 +1085,16 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
               <div className="flex justify-between">
                 <span>+{rateCard.material_markup_percent}% markup</span>
                 <span>+{formatEuro(qty * cost * rateCard.material_markup_percent / 100)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Day-rate effective hourly rate — display only, never affects the price */}
+          {sheet.rateType === 'day_rate' && dayRateEffectiveHourly != null && (
+            <div className="bg-amber-50 rounded-xl px-4 py-2.5 mb-4 text-xs text-amber-700">
+              <div className="flex justify-between">
+                <span>Effective rate ({qty} hrs/day)</span>
+                <span>{formatEuro(dayRateEffectiveHourly)}/hr</span>
               </div>
             </div>
           )}

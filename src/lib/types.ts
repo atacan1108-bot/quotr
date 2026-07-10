@@ -9,6 +9,13 @@
  * - labour:   hours × rate_card.labour_rate_per_hour
  * - material: quantity × unit_cost × (1 + markup%)
  * - fixed:    unit_cost only (quantity ignored in pricing)
+ *
+ * Recurring quotes use the exact same shape — rate_type ('day_rate' |
+ * 'hourly' | 'fixed') replaces labour/material/fixed for a service
+ * contract's line items. type is still stored as 'fixed' on those lines for
+ * schema consistency, but pricing and display are driven by rate_type
+ * whenever it's set. See src/lib/pricing.ts for the full explanation and
+ * the money math.
  */
 export interface LineItem {
   label:     string
@@ -16,6 +23,7 @@ export interface LineItem {
   quantity:  number   // hours for labour, units for material, 1 for fixed
   unit_cost: number   // cost per unit before markup (materials) or 0 for labour
   hours?:    number   // display alias for quantity when type === 'labour'
+  rate_type?: 'day_rate' | 'hourly' | 'fixed'   // recurring quotes only
 }
 
 /** Money breakdown stored on every proposal so PDFs stay reproducible. */

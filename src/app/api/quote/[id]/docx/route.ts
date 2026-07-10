@@ -13,6 +13,7 @@ import {
 } from 'docx'
 import { headers } from 'next/headers'
 import { getQuoteExportData } from '@/lib/quoteData'
+import { recurringRateItemText, RECURRING_RATE_LABELS } from '@/lib/pricing'
 
 // Dutch euro format: € 1.234,56
 const euro = (n: number) =>
@@ -207,9 +208,11 @@ export async function GET(
                       ] : []),
                     ],
                   }),
-                  bodyCell(TYPE_LABEL[item.type] ?? item.type),
+                  bodyCell(item.rate_type ? RECURRING_RATE_LABELS[item.rate_type] : (TYPE_LABEL[item.type] ?? item.type)),
                   bodyCell(
-                    item.type === 'labour' ? `${item.quantity} u` : `${item.quantity} st`,
+                    item.rate_type
+                      ? recurringRateItemText(item.rate_type, item.quantity, item.unit_cost).quantityText
+                      : item.type === 'labour' ? `${item.quantity} u` : `${item.quantity} st`,
                     { right: true },
                   ),
                   bodyCell(euro(item.line_total), { bold: true, right: true }),

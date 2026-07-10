@@ -9,7 +9,7 @@
  * A "FAIL ✗" line means something is wrong and shows what we got vs expected.
  */
 
-import { calculateProposal, calculateRecurringPeriods } from './pricing.js'
+import { calculateProposal, calculateRecurringPeriods, effectiveHourlyRate } from './pricing.js'
 import type { LineItem } from './pricing.js'
 
 // ─── Minimal test harness (no framework needed) ──────────────────────────────
@@ -289,6 +289,60 @@ const t10 = calculateRecurringPeriods(t10base, { days_per_week: 0, weeks_per_yea
 test('per_week ex VAT = 0',         () => expect(t10.per_week.ex_vat,       0, 'week zero'))
 test('per_month ex VAT = 0',        () => expect(t10.per_month.ex_vat,      0, 'month zero'))
 test('contract_total incl VAT = 0', () => expect(t10.contract_total.incl_vat, 0, 'contract zero'))
+
+// ── Test 11: Recurring rate types — Daily rate / Hourly rate / Fixed ─────────
+//
+// The three rate types a recurring contract's line items can use, restored
+// as a `rate_type` field on the exact same LineItem/calculateProposal used
+// everywhere else — not a second pricing model. The exact numbers from the
+// request:
+//   Daily rate: €255,00/day, 5 hours/day (quantity is reference only)
+//     -> line_total = €255,00 (NOT €255 × 5 — a day rate doesn't multiply)
+//     -> effective hourly rate = €255 / 5 = €51,00/hr (display only)
+//     -> × 5 days/week × 52 weeks/year = €66.300,00/year
+//
+console.log('\nTest 11 — Recurring rate types: Daily rate / Hourly rate / Fixed')
+
+const t11day = calculateProposal(
+  [{ label: 'On-site supervision', type: 'fixed', quantity: 5, unit_cost: 255, rate_type: 'day_rate' }],
+  RC,
+)
+test('day_rate line_total = 255.00 (quantity not multiplied)', () => expect(t11day.items[0].line_total, 255.00, 'day rate total'))
+test('effectiveHourlyRate(255, 5) = 51.00',                    () => expect(effectiveHourlyRate(255, 5) ?? -1, 51.00, 'effective hourly'))
+
+const t11dayPeriods = calculateRecurringPeriods(t11day, { days_per_week: 5, weeks_per_year: 52, contract_term_months: 12 })
+test('day_rate × 5 days/week × 52 weeks = 66.300,00/year', () => expect(t11dayPeriods.per_year.ex_vat, 66300.00, 'day rate year'))
+
+const t11hourly = calculateProposal(
+  [{ label: 'Extra hours', type: 'fixed', quantity: 3, unit_cost: 45, rate_type: 'hourly' }],
+  RC,
+)
+test('hourly line_total = 135.00 (3h × €45/hr)', () => expect(t11hourly.items[0].line_total, 135.00, 'hourly total'))
+
+const t11fixed = calculateProposal(
+  [{ label: 'Monthly admin fee', type: 'fixed', quantity: 1, unit_cost: 40, rate_type: 'fixed' }],
+  RC,
+)
+test('fixed rate_type line_total = 40.00', () => expect(t11fixed.items[0].line_total, 40.00, 'fixed rate_type total'))
+
+// Mixed bundle: day rate + hourly extra + fixed admin fee, all in ONE
+// recurring quote — same array, same engine, summed like any other quote.
+console.log('\nTest 12 — Recurring: mixed Daily/Hourly/Fixed bundle scaled to a full contract')
+
+const t12base = calculateProposal(
+  [
+    { label: 'On-site supervision', type: 'fixed', quantity: 5, unit_cost: 255, rate_type: 'day_rate' },
+    { label: 'Extra hours',         type: 'fixed', quantity: 3, unit_cost: 45,  rate_type: 'hourly'   },
+    { label: 'Monthly admin fee',   type: 'fixed', quantity: 1, unit_cost: 40,  rate_type: 'fixed'    },
+  ],
+  RC,
+)
+test('bundle subtotal (one day) = 430.00', () => expect(t12base.subtotal, 430.00, 'bundle subtotal'))
+
+const t12 = calculateRecurringPeriods(t12base, { days_per_week: 5, weeks_per_year: 52, contract_term_months: 12 })
+test('bundle per_week ex VAT = 2.150,00',  () => expect(t12.per_week.ex_vat,  2150.00,  'bundle week'))
+test('bundle per_year ex VAT = 111.800,00',() => expect(t12.per_year.ex_vat, 111800.00, 'bundle year'))
+test('bundle per_month ex VAT = 9.316,67', () => expect(t12.per_month.ex_vat, 9316.67,  'bundle month'))
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
 

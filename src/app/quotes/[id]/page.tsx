@@ -5,7 +5,7 @@ import Link from 'next/link'
 import QRCode from 'qrcode'
 import type { Job, Proposal, Client } from '@/lib/types'
 import { deriveQuoteStatus, QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS } from '@/lib/types'
-import { formatEuro, itemTotal } from '@/lib/pricing'
+import { formatEuro, itemTotal, recurringRateItemText, RECURRING_RATE_LABELS } from '@/lib/pricing'
 import JobStatusActions from './JobStatusActions'
 import CopyLinkButton from './CopyLinkButton'
 import GenerateWordingSection from './GenerateWordingSection'
@@ -136,9 +136,13 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                 <div key={i} className="flex justify-between items-start py-3 gap-3">
                   <div className="min-w-0">
                     <p className="text-sm text-on-surface">{item.label}</p>
-                    <p className="text-xs text-muted capitalize mt-0.5">
-                      {item.type} · {item.quantity} {item.type === 'labour' ? 'hr' : 'unit'}
-                      {item.type === 'material' && ` × €${item.unit_cost}`}
+                    <p className="text-xs text-muted mt-0.5">
+                      {item.rate_type
+                        ? `${RECURRING_RATE_LABELS[item.rate_type]} · ${recurringRateItemText(item.rate_type, item.quantity, item.unit_cost).rateText}`
+                        : <span className="capitalize">
+                            {item.type} · {item.quantity} {item.type === 'labour' ? 'hr' : 'unit'}
+                            {item.type === 'material' && ` × €${item.unit_cost}`}
+                          </span>}
                     </p>
                   </div>
                   <p className="text-sm font-semibold text-on-surface shrink-0">

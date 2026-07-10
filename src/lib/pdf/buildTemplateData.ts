@@ -15,6 +15,7 @@
 import type { QuoteExportData } from '@/lib/quoteData'
 import type { TemplateData, TemplateLineItem } from '@/lib/htmlTemplate'
 import { euro, fmtDate, TYPE_META } from '@/lib/pdf/shared'
+import { recurringRateItemText } from '@/lib/pricing'
 
 export function buildTemplateData(data: QuoteExportData): { data: TemplateData; items: TemplateLineItem[]; isRecurring: boolean } {
   const { job, proposal, rateCard, breakdown, recurringPeriods, quoteSequence } = data
@@ -75,12 +76,27 @@ export function buildTemplateData(data: QuoteExportData): { data: TemplateData; 
       : ''
   }
 
-  const items: TemplateLineItem[] = breakdown.items.map(item => ({
-    item_label:      item.label,
-    item_quantity:   (TYPE_META[item.type] ?? (() => ''))(item.quantity),
-    item_unit_price: euro(item.unit_cost),
-    item_total:      euro(item.line_total),
-  }))
+  // Recurring lines (rate_type set) show their rate and what it's per
+  // ("€ 255,00/day (€ 51,00/hr)", "€ 65,00/hr", etc.) instead of the
+  // one-off labour/material/fixed formatting — same item_quantity/
+  // item_unit_price tokens either way, just different text in them.
+  const items: TemplateLineItem[] = breakdown.items.map(item => {
+    if (item.rate_type) {
+      const { quantityText, rateText } = recurringRateItemText(item.rate_type, item.quantity, item.unit_cost)
+      return {
+        item_label:      item.label,
+        item_quantity:   quantityText,
+        item_unit_price: rateText,
+        item_total:      euro(item.line_total),
+      }
+    }
+    return {
+      item_label:      item.label,
+      item_quantity:   (TYPE_META[item.type] ?? (() => ''))(item.quantity),
+      item_unit_price: euro(item.unit_cost),
+      item_total:      euro(item.line_total),
+    }
+  })
 
   return { data: templateData, items, isRecurring }
 }

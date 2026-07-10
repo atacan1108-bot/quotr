@@ -25,6 +25,24 @@ import type { RateCard } from './types'
 export type ItemType = 'labour' | 'material' | 'fixed'
 
 /**
+ * Recurring-quote-only line rate types. A recurring contract's line items
+ * use these instead of labour/material — day_rate/hourly/fixed replace
+ * labour/material/fixed for the duration of a service contract. This is
+ * NOT a second line-item system: it's one extra optional field on the
+ * exact same LineItem below, read by the exact same calculateProposal()
+ * and stored in the exact same jobs.line_items array as one-off items.
+ */
+export type RecurringRateType = 'day_rate' | 'hourly' | 'fixed'
+
+/** Plain-text labels for the three recurring rate types — shared by the
+ * intake UI, the quote detail page, and the DOCX export. */
+export const RECURRING_RATE_LABELS: Record<RecurringRateType, string> = {
+  day_rate: 'Daily rate',
+  hourly:   'Hourly rate',
+  fixed:    'Fixed',
+}
+
+/**
  * One line in a job, as entered by the contractor.
  * Mirrors the LineItem shape stored in jobs.line_items (JSONB).
  */
@@ -36,6 +54,9 @@ export interface LineItem {
    * - labour:   number of hours worked
    * - material: number of units purchased
    * - fixed:    typically 1 (but can be > 1, e.g. "2 service calls at €150 each")
+   * - rate_type 'day_rate': hours/day, shown for reference only — never
+   *   multiplied into the price (see calculateProposal)
+   * - rate_type 'hourly'/'fixed': same meaning as labour/fixed above
    */
   quantity:  number
   /**
@@ -43,10 +64,21 @@ export interface LineItem {
    * - labour:   ignored — rate comes from the rate card
    * - material: supplier cost per unit
    * - fixed:    the flat price per occurrence
+   * - rate_type 'day_rate': the flat rate for one day
+   * - rate_type 'hourly':   the rate per hour for this line (NOT the rate
+   *   card's labour rate — recurring contracts often negotiate their own)
+   * - rate_type 'fixed':    the flat amount per occurrence
    */
   unit_cost: number
   /** Alias for quantity when type === 'labour', kept for display. */
   hours?:    number
+  /**
+   * Recurring quotes only. When set, this line is priced by rate_type
+   * instead of by `type` — `type` is still stored (always 'fixed') for
+   * schema consistency but calculateProposal ignores it once rate_type is
+   * present. One-off items never set this field.
+   */
+  rate_type?: RecurringRateType
 }
 
 /**
@@ -57,6 +89,8 @@ export interface LineItem {
 export interface PricedItem {
   label:         string
   type:          ItemType
+  /** Recurring quotes only — see LineItem.rate_type. */
+  rate_type?:    RecurringRateType
   quantity:      number
   unit_cost:     number    // the effective cost-per-unit used (rate card rate for labour)
   base_cost:     number    // cost before markup  (labour/fixed → same as line_total)
@@ -156,9 +190,19 @@ export function calculateProposal(
       }
 
       case 'fixed': {
-        // Fixed price: quantity × unit_cost, no markup.
-        // e.g. 2 service calls × €150 = 2 × 15000¢ = 30000¢ = €300.00
-        lineTotalCents = Math.round(quantity * toCents(unitCost))
+        if (raw.rate_type === 'day_rate') {
+          // Day rate: a flat amount for ONE occurrence (one day on site).
+          // quantity may hold "hours/day" for reference/display (see
+          // recurringRateItemText below) but never multiplies into the
+          // price — a day rate doesn't change because the crew worked a
+          // little more or less that day.
+          lineTotalCents = toCents(unitCost)
+        } else {
+          // One-off 'fixed', and recurring rate types 'fixed'/'hourly':
+          // quantity × unit_cost, no markup.
+          // e.g. 2 service calls × €150 = 2 × 15000¢ = 30000¢ = €300.00
+          lineTotalCents = Math.round(quantity * toCents(unitCost))
+        }
         baseCostCents  = lineTotalCents
         markupCents    = 0
         fixedTotalCents += lineTotalCents
@@ -169,6 +213,7 @@ export function calculateProposal(
     return {
       label,
       type,
+      rate_type:     raw.rate_type,
       quantity,
       unit_cost:     effectiveUnitCost,
       base_cost:     fromCents(baseCostCents),
@@ -309,6 +354,51 @@ export function itemTotal(
 ): number {
   const result = calculateProposal([item], rateCard)
   return result.items[0]?.line_total ?? 0
+}
+
+/**
+ * Effective hourly-equivalent for a day-rate line — DISPLAY ONLY, never
+ * used in the money calculation itself (a day rate is charged flat per day
+ * regardless of how many hours were actually worked that day).
+ * e.g. effectiveHourlyRate(255, 5) === 51
+ */
+export function effectiveHourlyRate(dayRate: number, hoursPerDay: number): number | null {
+  if (!(hoursPerDay > 0)) return null
+  return Math.round((dayRate / hoursPerDay) * 100) / 100
+}
+
+/**
+ * Display text for a recurring line's quantity/rate columns — used by the
+ * quote intake UI, the quote detail page, the DOCX export, and the PDF
+ * line-items region. Formatting only; all money math already happened in
+ * calculateProposal above.
+ */
+export function recurringRateItemText(
+  rateType: RecurringRateType,
+  quantity: number,
+  unitCost: number,
+): { quantityText: string; rateText: string } {
+  switch (rateType) {
+    case 'day_rate': {
+      const perHour = effectiveHourlyRate(unitCost, quantity)
+      return {
+        quantityText: quantity > 0 ? `${quantity} hr${quantity === 1 ? '' : 's'}/day` : 'Per day',
+        rateText: perHour != null
+          ? `${formatEuro(unitCost)}/day (${formatEuro(perHour)}/hr)`
+          : `${formatEuro(unitCost)}/day`,
+      }
+    }
+    case 'hourly':
+      return {
+        quantityText: `${quantity} hour${quantity === 1 ? '' : 's'}`,
+        rateText: `${formatEuro(unitCost)}/hr`,
+      }
+    case 'fixed':
+      return {
+        quantityText: 'Per occurrence',
+        rateText: formatEuro(unitCost),
+      }
+  }
 }
 
 // ─── Private helpers ─────────────────────────────────────────────────────────
