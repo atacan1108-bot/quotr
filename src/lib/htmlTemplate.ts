@@ -57,6 +57,34 @@ export interface TemplateData {
   total_contract_term:   string
   contract_term_months:  string
   notice_period_months:  string
+  // Static-label tokens — one template serves both languages. Resolved
+  // from src/lib/pdf/pdfLabels.ts by job.language, not the token system
+  // itself. A template author uses these instead of typing "Subtotaal"/
+  // "Subtotal" etc. directly.
+  lbl_quote:                  string
+  lbl_quote_for:              string
+  lbl_a_note_from:            string
+  lbl_client:                 string
+  lbl_from:                   string
+  lbl_details:                string
+  lbl_quote_number:           string
+  lbl_date:                   string
+  lbl_description:            string
+  lbl_quantity:                string
+  lbl_rate:                   string
+  lbl_amount:                 string
+  lbl_subtotal:               string
+  lbl_vat:                    string
+  lbl_total:                  string
+  lbl_scope_of_work:          string
+  lbl_terms_and_conditions:   string
+  lbl_for_approval_contractor: string
+  lbl_for_approval_client:    string
+  lbl_signature_and_date:     string
+  lbl_initials:               string
+  lbl_page:                   string
+  lbl_of:                     string
+  lbl_dear:                   string
 }
 
 /** One repeated row in the LINE_ITEMS region — identical for both quote types. */
@@ -76,6 +104,10 @@ export const SCALAR_TOKENS = [
   'subtotal', 'vat_percent', 'vat_amount', 'total', 'terms_text', 'footer_text',
   'total_per_week', 'total_per_month', 'total_per_year', 'total_contract_term',
   'contract_term_months', 'notice_period_months',
+  'lbl_quote', 'lbl_quote_for', 'lbl_a_note_from', 'lbl_client', 'lbl_from', 'lbl_details', 'lbl_quote_number', 'lbl_date',
+  'lbl_description', 'lbl_quantity', 'lbl_rate', 'lbl_amount', 'lbl_subtotal', 'lbl_vat', 'lbl_total',
+  'lbl_scope_of_work', 'lbl_terms_and_conditions', 'lbl_for_approval_contractor',
+  'lbl_for_approval_client', 'lbl_signature_and_date', 'lbl_initials', 'lbl_page', 'lbl_of', 'lbl_dear',
 ] as const satisfies readonly (keyof TemplateData)[]
 
 export const LINE_ITEM_TOKENS = ['item_label', 'item_quantity', 'item_unit_price', 'item_total'] as const

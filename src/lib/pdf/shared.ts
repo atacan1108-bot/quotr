@@ -15,10 +15,6 @@ import { StyleSheet } from '@react-pdf/renderer'
 export const euro = (n: number) =>
   new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n)
 
-export function fmtDate(d: Date) {
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).format(d)
-}
-
 // ─── Brand palette ───────────────────────────────────────────────────────────
 
 /** Fallback brand color when a contractor hasn't set one (or imported one) yet. */
@@ -95,10 +91,4 @@ export function createPdfStyles(primary: string = DEFAULT_PRIMARY) {
     footerTxt:     { fontSize: 7, color: MUTED, lineHeight: 1.6 },
     footerTagline: { fontSize: 7.5, color: primary, fontFamily: 'Helvetica-Bold', marginBottom: 3 },
   })
-}
-
-export const TYPE_META: Record<string, (qty: number) => string> = {
-  labour:   qty => `${qty} ${qty === 1 ? 'hour' : 'hours'} of labour`,
-  material: qty => `${qty} ${qty === 1 ? 'unit' : 'units'}`,
-  fixed:    () => 'Fixed price',
 }

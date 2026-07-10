@@ -1,13 +1,16 @@
 'use client'
 
 import {
-  useState, useEffect, useRef, useMemo, useCallback,
+  useState, useEffect, useRef, useMemo,
   type ChangeEvent,
 } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations, useLocale } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
-import { calculateProposal, calculateRecurringPeriods, itemTotal, formatEuro, recurringRateItemText, effectiveHourlyRate } from '@/lib/pricing'
+import { calculateProposal, calculateRecurringPeriods, itemTotal, formatEuro, effectiveHourlyRate } from '@/lib/pricing'
 import type { LineItem, ProposalBreakdown, RecurringContractTerms, RecurringRateType } from '@/lib/pricing'
+import { recurringRateItemText } from '@/lib/pdf/pdfLabels'
+import type { Locale } from '@/i18n/config'
 import type { QuoteType, RecurringConfig } from '@/lib/types'
 
 // ─── Prop types ───────────────────────────────────────────────────────────────
@@ -76,17 +79,51 @@ function sheetIsValid(sheet: SheetState): boolean {
   return qty > 0
 }
 
-// ─── Per-type display config ──────────────────────────────────────────────────
+// ─── Translated label lookups (shared by ItemCard, AddItemSheet, and the
+// main render below) — the type/rateType → copy mapping lives in ONE
+// place per concern, called with whichever component's own `t`. ─────────
+
+type NewQuoteT = ReturnType<typeof useTranslations<'newQuote'>>
+
+function itemOrRateLabel(t: NewQuoteT, item: { type: LineItem['type']; rateType?: RecurringRateType | null }): string {
+  if (item.rateType === 'day_rate') return t('itemDayRate')
+  if (item.rateType === 'hourly')   return t('itemHourly')
+  if (item.rateType === 'fixed')    return t('itemFixed')
+  if (item.type === 'labour')       return t('itemLabour')
+  if (item.type === 'material')     return t('itemMaterial')
+  return t('itemFixed')
+}
+
+function qtyLabel(t: NewQuoteT, item: { type: LineItem['type']; rateType?: RecurringRateType | null }): string {
+  if (item.rateType === 'day_rate') return t('qtyLabelHoursPerDayRef')
+  if (item.rateType === 'hourly')   return t('qtyLabelHours')
+  if (item.rateType === 'fixed')    return t('qtyLabelQty')
+  if (item.type === 'labour')       return t('qtyLabelHours')
+  return t('qtyLabelQty')
+}
+
+function costLabel(t: NewQuoteT, item: { type: LineItem['type']; rateType?: RecurringRateType | null }): string {
+  if (item.rateType === 'day_rate') return t('costLabelDayRate')
+  if (item.rateType === 'hourly')   return t('costLabelHourly')
+  if (item.rateType === 'fixed')    return t('costLabelFixedRate')
+  if (item.type === 'material')     return t('costLabelMaterial')
+  return t('costLabelFixed')
+}
+
+function showCostFor(item: { type: LineItem['type']; rateType?: RecurringRateType | null }): boolean {
+  // One-off labour's rate comes from the rate card, so it has no cost
+  // field of its own. Every recurring rate type and every other one-off
+  // type shows one.
+  return item.rateType != null || item.type !== 'labour'
+}
+
+// ─── Per-type visual config (icon/color only — labels are translated) ────────
 
 const ITEM_CFG = {
   labour: {
-    label:     'Labour',
-    color:     'bg-amber-50 border-amber-200 text-amber-700',
-    dot:       'bg-amber-400',
-    qtyLabel:  'Hours',
-    qtyStep:   '0.5',
-    showCost:  false,
-    costLabel: '',
+    color: 'bg-amber-50 border-amber-200 text-amber-700',
+    dot:   'bg-amber-400',
+    qtyStep: '0.5',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -94,13 +131,9 @@ const ITEM_CFG = {
     ),
   },
   material: {
-    label:     'Material',
-    color:     'bg-blue-50 border-blue-200 text-blue-700',
-    dot:       'bg-blue-400',
-    qtyLabel:  'Qty',
-    qtyStep:   '1',
-    showCost:  true,
-    costLabel: 'Cost / unit (€)',
+    color: 'bg-blue-50 border-blue-200 text-blue-700',
+    dot:   'bg-blue-400',
+    qtyStep: '1',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
@@ -108,13 +141,9 @@ const ITEM_CFG = {
     ),
   },
   fixed: {
-    label:     'Fixed',
-    color:     'bg-purple-50 border-purple-200 text-purple-700',
-    dot:       'bg-purple-400',
-    qtyLabel:  'Qty',
-    qtyStep:   '1',
-    showCost:  true,
-    costLabel: 'Price each (€)',
+    color: 'bg-purple-50 border-purple-200 text-purple-700',
+    dot:   'bg-purple-400',
+    qtyStep: '1',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185Z" />
@@ -123,19 +152,15 @@ const ITEM_CFG = {
   },
 } as const
 
-// ─── Per-rate-type display config (recurring quotes only) ─────────────────────
+// ─── Per-rate-type visual config (recurring quotes only) ──────────────────────
 // Same DraftItem/AddItemSheet machinery as ITEM_CFG above — this is a
 // second config table, not a second line-item system.
 
 const RATE_TYPE_CFG = {
   day_rate: {
-    label:     'Daily rate',
-    color:     'bg-amber-50 border-amber-200 text-amber-700',
-    dot:       'bg-amber-400',
-    qtyLabel:  'Hours/day (reference)',
-    qtyStep:   '0.5',
-    showCost:  true,
-    costLabel: 'Day rate (€)',
+    color: 'bg-amber-50 border-amber-200 text-amber-700',
+    dot:   'bg-amber-400',
+    qtyStep: '0.5',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
@@ -143,13 +168,9 @@ const RATE_TYPE_CFG = {
     ),
   },
   hourly: {
-    label:     'Hourly rate',
-    color:     'bg-blue-50 border-blue-200 text-blue-700',
-    dot:       'bg-blue-400',
-    qtyLabel:  'Hours',
-    qtyStep:   '0.5',
-    showCost:  true,
-    costLabel: 'Hourly rate (€)',
+    color: 'bg-blue-50 border-blue-200 text-blue-700',
+    dot:   'bg-blue-400',
+    qtyStep: '0.5',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -157,13 +178,9 @@ const RATE_TYPE_CFG = {
     ),
   },
   fixed: {
-    label:     'Fixed',
-    color:     'bg-purple-50 border-purple-200 text-purple-700',
-    dot:       'bg-purple-400',
-    qtyLabel:  'Qty',
-    qtyStep:   '1',
-    showCost:  true,
-    costLabel: 'Amount (€)',
+    color: 'bg-purple-50 border-purple-200 text-purple-700',
+    dot:   'bg-purple-400',
+    qtyStep: '1',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185Z" />
@@ -177,12 +194,19 @@ const RATE_TYPE_CFG = {
 export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Props) {
   const router = useRouter()
   const supabase = createClient()
+  const t = useTranslations('newQuote')
+  const tLang = useTranslations('language')
+  const appLocale = useLocale() as Locale
 
   // ── Main form state ──────────────────────────────────────────
   const [jobTitle,  setJobTitle]  = useState('')
   const [items,     setItems]     = useState<DraftItem[]>([])
   const [saving,    setSaving]    = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // This QUOTE's own language — independent of the contractor's own app
+  // language, defaults to it, changeable per quote. Drives the PDF/public
+  // page/AI wording for THIS quote regardless of who views it later.
+  const [quoteLanguage, setQuoteLanguage] = useState<Locale>(appLocale)
 
   // ── Quote type + recurring contract state ─────────────────────
   const [quoteType, setQuoteType] = useState<QuoteType>('one_off')
@@ -267,8 +291,8 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
   // ── Auto-focus sheet label input after animation starts ──────
   useEffect(() => {
     if (!sheet.open) return
-    const t = setTimeout(() => sheetLabelRef.current?.focus(), 60)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => sheetLabelRef.current?.focus(), 60)
+    return () => clearTimeout(timer)
   }, [sheet.open, sheet.type, sheet.rateType])
 
   // ── Client helpers ───────────────────────────────────────────
@@ -383,9 +407,10 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
         .insert({
           owner_id:   ownerId,
           client_id:  clientId,
-          title:      jobTitle.trim() || (quoteType === 'one_off' ? 'Untitled job' : 'Untitled contract'),
+          title:      jobTitle.trim() || t(quoteType === 'one_off' ? 'title' : 'quoteTypeRecurring'),
           status:     'draft',
           quote_type: quoteType,
+          language:   quoteLanguage,
           line_items: validItems.map(draftToLineItem),
           ...(quoteType === 'recurring' ? { recurring_config: recurringConfig } : {}),
         })
@@ -411,7 +436,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
         (err instanceof Error && err.message)
           ? err.message
           : (err as { message?: string })?.message
-          ?? 'Save failed — please try again.'
+          ?? t('saveFailed')
       setSaveError(msg)
       setSaving(false)
     }
@@ -440,12 +465,12 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
             </svg>
-            Back
+            {t('back')}
           </button>
-          <span className="text-sm font-semibold text-on-surface">New Quote</span>
+          <span className="text-sm font-semibold text-on-surface">{t('title')}</span>
           {/* Rate card pill */}
           <div className="text-xs text-muted bg-surface border border-border rounded-full px-2.5 py-1 hidden sm:block">
-            €{rateCard.labour_rate_per_hour}/hr · +{rateCard.material_markup_percent}% · VAT {rateCard.vat_percent}%
+            {t('ratePill', { rate: rateCard.labour_rate_per_hour, markup: rateCard.material_markup_percent, vat: rateCard.vat_percent })}
           </div>
           <div className="w-16 sm:hidden" />
         </div>
@@ -459,16 +484,52 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
           type="text"
           value={jobTitle}
           onChange={e => setJobTitle(e.target.value)}
-          placeholder="Job description (e.g. Kitchen reno, solar install…)"
+          placeholder={t('jobTitlePlaceholder')}
           className="w-full h-13 rounded-2xl border border-border bg-white px-4 py-3 text-base font-medium text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition mb-4"
         />
+
+        {/* ── QUOTE LANGUAGE — separate from the app's own language;
+               defaults to it, changeable per quote, drives the PDF/public
+               page/AI wording for THIS quote only. ─────────────────── */}
+        <div className="flex items-center justify-between mb-4 px-1">
+          <span className="text-xs font-semibold text-muted uppercase tracking-wide">{t('quoteLanguageLabel')}</span>
+          <div className="flex rounded-full border border-border bg-white p-0.5">
+            {(['nl', 'en'] as const).map(loc => (
+              <button
+                key={loc}
+                type="button"
+                onClick={() => setQuoteLanguage(loc)}
+                aria-pressed={quoteLanguage === loc}
+                className="min-w-11 h-8 px-3 rounded-full text-xs font-semibold uppercase transition"
+                style={
+                  quoteLanguage === loc
+                    ? { backgroundColor: ACCENT, color: '#fff' }
+                    : { color: 'var(--color-muted)' }
+                }
+                title={loc === 'nl' ? tLang('dutch') : tLang('english')}
+              >
+                {loc}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* ── QUOTE TYPE ──────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-2 mb-4">
           {(['one_off', 'recurring'] as const).map(type => (
             <button
               key={type}
-              onClick={() => setQuoteType(type)}
+              onClick={() => {
+                if (type === quoteType) return
+                // One-off items (labour/material/fixed, rate-card-driven)
+                // and recurring items (rate_type-driven) are different
+                // shapes — switching type without clearing left old items
+                // behind with stale labels (e.g. a leftover "Labour" item
+                // on a recurring quote). Confirm before discarding any.
+                if (items.length > 0 && !window.confirm(t('quoteTypeSwitchConfirm'))) return
+                setQuoteType(type)
+                setItems([])
+              }}
               className="h-12 rounded-2xl text-sm font-semibold border-2 transition active:scale-[0.98]"
               style={
                 quoteType === type
@@ -476,7 +537,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
                   : { backgroundColor: '#fff', borderColor: 'var(--color-border)', color: 'var(--color-muted)' }
               }
             >
-              {type === 'one_off' ? 'One-off job' : 'Recurring contract'}
+              {type === 'one_off' ? t('quoteTypeOneOff') : t('quoteTypeRecurring')}
             </button>
           ))}
         </div>
@@ -484,7 +545,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
         {/* ── CLIENT ──────────────────────────────────────────── */}
         <section className="bg-white rounded-2xl border border-border mb-4 overflow-hidden">
           <div className="px-4 py-3 border-b border-border">
-            <span className="text-xs font-semibold text-muted uppercase tracking-wide">Client</span>
+            <span className="text-xs font-semibold text-muted uppercase tracking-wide">{t('client')}</span>
           </div>
 
           {selectedClient ? (
@@ -499,7 +560,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
               <button
                 onClick={clearClient}
                 className="text-muted hover:text-red-500 transition p-1.5 -mr-1"
-                aria-label="Remove client"
+                aria-label={t('removeClientAria')}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -514,7 +575,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
                 value={clientSearch}
                 onChange={e => { setClientSearch(e.target.value); setClientListOpen(true) }}
                 onFocus={() => setClientListOpen(true)}
-                placeholder="Search or type new client name…"
+                placeholder={t('clientSearchPlaceholder')}
                 className="w-full h-11 rounded-xl border border-border bg-surface px-3 text-sm text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
               />
 
@@ -544,12 +605,12 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                       </svg>
-                      Add "{clientSearch.trim()}" as new client
+                      {t('addAsNewClient', { name: clientSearch.trim() })}
                     </button>
                   )}
 
                   {filteredClients.length === 0 && !clientSearch.trim() && (
-                    <p className="px-3 py-3 text-sm text-muted text-center">No clients yet</p>
+                    <p className="px-3 py-3 text-sm text-muted text-center">{t('noClientsYet')}</p>
                   )}
                 </div>
               )}
@@ -561,7 +622,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
                   inputMode="tel"
                   value={newClientPhone}
                   onChange={e => setNewClientPhone(e.target.value)}
-                  placeholder="Phone (optional)"
+                  placeholder={t('phonePlaceholder')}
                   className="mt-2 w-full h-11 rounded-xl border border-border bg-surface px-3 text-sm text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
                 />
               )}
@@ -587,9 +648,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
 
           {items.length === 0 && (
             <p className="text-center text-sm text-muted py-6">
-              {quoteType === 'one_off'
-                ? 'Add at least one item below to build your quote.'
-                : 'Add at least one item below to price this contract (a daily rate, an hourly rate, or a fixed fee).'}
+              {quoteType === 'one_off' ? t('emptyOneOff') : t('emptyRecurring')}
             </p>
           )}
 
@@ -608,7 +667,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
                     >
                       {cfg.icon}
                       <span className="text-xs font-semibold leading-tight text-center">
-                        + {cfg.label}
+                        + {itemOrRateLabel(t, { type })}
                       </span>
                     </button>
                   )
@@ -623,7 +682,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
                     >
                       {cfg.icon}
                       <span className="text-xs font-semibold leading-tight text-center">
-                        + {cfg.label}
+                        + {itemOrRateLabel(t, { type: 'fixed', rateType })}
                       </span>
                     </button>
                   )
@@ -634,7 +693,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
         {/* Rate card note — one-off only (recurring rates are set per line, not from the rate card) */}
         {quoteType === 'one_off' && (
           <p className="mt-4 text-center text-xs text-muted sm:hidden">
-            Labour €{rateCard.labour_rate_per_hour}/hr · Materials +{rateCard.material_markup_percent}% · VAT {rateCard.vat_percent}%
+            {t('rateCardNote', { rate: rateCard.labour_rate_per_hour, markup: rateCard.material_markup_percent, vat: rateCard.vat_percent })}
           </p>
         )}
 
@@ -642,11 +701,11 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
         {quoteType === 'recurring' && (
         <section className="bg-white rounded-2xl border border-border mb-4 mt-4 overflow-hidden">
           <div className="px-4 py-3 border-b border-border">
-            <span className="text-xs font-semibold text-muted uppercase tracking-wide">Contract terms</span>
+            <span className="text-xs font-semibold text-muted uppercase tracking-wide">{t('contractTerms')}</span>
           </div>
           <div className="p-4 flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
-              <RField label="Days / week">
+              <RField label={t('daysPerWeek')}>
                 <input
                   type="number" inputMode="decimal" min="0" max="7" step="1"
                   value={daysPerWeekStr}
@@ -654,7 +713,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
                   className={rInput}
                 />
               </RField>
-              <RField label="Weeks / year">
+              <RField label={t('weeksPerYear')}>
                 <input
                   type="number" inputMode="decimal" min="0" max="52" step="1"
                   value={weeksPerYearStr}
@@ -665,7 +724,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <RField label="Contract length (months)">
+              <RField label={t('contractLength')}>
                 <input
                   type="number" inputMode="decimal" min="0" step="1"
                   value={contractTermStr}
@@ -673,12 +732,12 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
                   className={rInput}
                 />
               </RField>
-              <RField label="Notice period (months)">
+              <RField label={t('noticePeriod')}>
                 <input
                   type="number" inputMode="decimal" min="0" step="1"
                   value={noticePeriodStr}
                   onChange={e => setNoticePeriodStr(e.target.value)}
-                  placeholder="Optional"
+                  placeholder={t('noticePeriodOptional')}
                   className={rInput}
                 />
               </RField>
@@ -688,7 +747,7 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
               onClick={() => setAutoRenewal(v => !v)}
               className="flex items-center justify-between h-12 px-4 rounded-xl border border-border bg-surface"
             >
-              <span className="text-sm font-medium text-on-surface">Auto-renews after term</span>
+              <span className="text-sm font-medium text-on-surface">{t('autoRenew')}</span>
               <span
                 className="w-11 h-6 rounded-full relative transition"
                 style={{ backgroundColor: autoRenewal ? ACCENT : 'var(--color-border)' }}
@@ -707,28 +766,28 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
         {quoteType === 'recurring' && items.length > 0 && (
         <section className="bg-white rounded-2xl border border-border mb-4 overflow-hidden">
           <div className="px-4 py-3 border-b border-border">
-            <span className="text-xs font-semibold text-muted uppercase tracking-wide">Pricing summary</span>
+            <span className="text-xs font-semibold text-muted uppercase tracking-wide">{t('pricingSummary')}</span>
           </div>
           <div className="p-4 flex flex-col gap-2.5">
             <RecurringSummaryRow
-              label="Per week"
+              label={t('perWeek')}
               value={formatEuro(rateCard.prices_shown_excluding_vat ? recurringBreakdown.per_week.ex_vat : recurringBreakdown.per_week.incl_vat)}
             />
             <RecurringSummaryRow
-              label="Per month"
+              label={t('perMonth')}
               value={formatEuro(rateCard.prices_shown_excluding_vat ? recurringBreakdown.per_month.ex_vat : recurringBreakdown.per_month.incl_vat)}
             />
             <RecurringSummaryRow
-              label="Per year"
+              label={t('perYear')}
               value={formatEuro(rateCard.prices_shown_excluding_vat ? recurringBreakdown.per_year.ex_vat : recurringBreakdown.per_year.incl_vat)}
             />
             <div className="h-px bg-border my-1" />
             <RecurringSummaryRow
-              label={`Over ${recurringBreakdown.contract_term_months || 0}-month term`}
+              label={t('overTerm', { months: recurringBreakdown.contract_term_months || 0 })}
               value={formatEuro(rateCard.prices_shown_excluding_vat ? recurringBreakdown.contract_total.ex_vat : recurringBreakdown.contract_total.incl_vat)}
             />
             <p className="text-[11px] text-muted text-right -mt-1">
-              {rateCard.prices_shown_excluding_vat ? 'excl. VAT' : 'incl. VAT'}
+              {rateCard.prices_shown_excluding_vat ? t('exclVat') : t('inclVat')}
             </p>
           </div>
         </section>
@@ -756,17 +815,17 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
           {/* Breakdown rows */}
           {quoteType === 'one_off' ? (
           <div className="flex flex-col gap-0.5 mb-3">
-            {totals.labour_total   > 0 && <TotalRow label="Labour"    value={totals.labour_total}   />}
-            {totals.material_total > 0 && <TotalRow label="Materials" value={totals.material_total} />}
-            {totals.fixed_total    > 0 && <TotalRow label="Fixed"     value={totals.fixed_total}    />}
+            {totals.labour_total   > 0 && <TotalRow label={t('itemLabour')}    value={totals.labour_total}   />}
+            {totals.material_total > 0 && <TotalRow label={t('itemMaterials')} value={totals.material_total} />}
+            {totals.fixed_total    > 0 && <TotalRow label={t('itemFixed')}     value={totals.fixed_total}    />}
             {items.length > 0 && (
               <>
                 <div className="flex justify-between text-xs text-muted pt-0.5">
-                  <span>Subtotal</span>
+                  <span>{t('subtotal')}</span>
                   <span>{formatEuro(totals.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted">
-                  <span>VAT {totals.vat_percent}%</span>
+                  <span>{t('vat', { percent: totals.vat_percent })}</span>
                   <span>{formatEuro(totals.vat_amount)}</span>
                 </div>
               </>
@@ -777,11 +836,11 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
             {canSaveRecurring && (
               <>
                 <div className="flex justify-between text-xs text-muted">
-                  <span>Per month</span>
+                  <span>{t('perMonth')}</span>
                   <span>{formatEuro(recurringBreakdown.per_month.incl_vat)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted">
-                  <span>Over {recurringBreakdown.contract_term_months}-month term</span>
+                  <span>{t('overTerm', { months: recurringBreakdown.contract_term_months })}</span>
                   <span>{formatEuro(recurringBreakdown.contract_total.incl_vat)}</span>
                 </div>
               </>
@@ -794,22 +853,22 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
             <div className="flex-1 min-w-0">
               {quoteType === 'one_off' ? (
                 <>
-                  <span className="text-xs font-medium text-muted block">Total incl. VAT</span>
+                  <span className="text-xs font-medium text-muted block">{t('totalInclVat')}</span>
                   <span className={`text-2xl font-bold leading-tight ${items.length > 0 ? 'text-teal-500' : 'text-muted'}`}>
                     {formatEuro(totals.total)}
                   </span>
                   {items.length === 0 && (
-                    <span className="text-xs text-muted block">Add items above first</span>
+                    <span className="text-xs text-muted block">{t('addItemsFirst')}</span>
                   )}
                 </>
               ) : (
                 <>
-                  <span className="text-xs font-medium text-muted block">Contract total incl. VAT</span>
+                  <span className="text-xs font-medium text-muted block">{t('contractTotalInclVat')}</span>
                   <span className={`text-2xl font-bold leading-tight ${canSaveRecurring ? 'text-teal-500' : 'text-muted'}`}>
                     {formatEuro(recurringBreakdown.contract_total.incl_vat)}
                   </span>
                   {!canSaveRecurring && (
-                    <span className="text-xs text-muted block">Fill in the contract terms above</span>
+                    <span className="text-xs text-muted block">{t('fillContractTerms')}</span>
                   )}
                 </>
               )}
@@ -827,9 +886,9 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Saving…
+                  {t('saving')}
                 </span>
-              ) : 'Save quote'}
+              ) : t('saveQuote')}
             </button>
           </div>
         </div>
@@ -861,11 +920,14 @@ function ItemCard({
   onEdit:   () => void
   onDelete: () => void
 }) {
+  const t = useTranslations('newQuote')
+  const locale = useLocale() as Locale
   const cfg   = item.rateType ? RATE_TYPE_CFG[item.rateType] : ITEM_CFG[item.type]
   const total = itemTotal(draftToLineItem(item), rateCard)
+  const label = itemOrRateLabel(t, item)
   const meta  = item.rateType
-    ? `${cfg.label} · ${recurringRateItemText(item.rateType, item.quantity, item.unit_cost).rateText}`
-    : `${cfg.label}${item.type === 'labour' ? ` · ${item.quantity} hr` : ` · ${item.quantity} × ${formatEuro(item.unit_cost)}`}`
+    ? `${label} · ${recurringRateItemText(locale, item.rateType, item.quantity, item.unit_cost).rateText}`
+    : `${label}${item.type === 'labour' ? ` · ${item.quantity} ${t('hourUnit')}` : ` · ${item.quantity} × ${formatEuro(item.unit_cost)}`}`
 
   return (
     <button
@@ -888,7 +950,7 @@ function ItemCard({
           <button
             onClick={e => { e.stopPropagation(); onDelete() }}
             className="text-muted hover:text-red-500 transition p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
-            aria-label="Delete item"
+            aria-label={t('deleteItemAria')}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -947,11 +1009,14 @@ interface SheetProps {
 }
 
 function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, onDelete, onChange }: SheetProps) {
+  const t = useTranslations('newQuote')
   const cfg       = sheet.rateType ? RATE_TYPE_CFG[sheet.rateType] : ITEM_CFG[sheet.type]
+  const label     = itemOrRateLabel(t, sheet)
   const isEditing = sheet.editingId !== null
   const qty       = parseFloat(sheet.qty)      || 0
   const cost      = parseFloat(sheet.unitCost) || 0
   const valid     = sheetIsValid(sheet)
+  const showCost  = showCostFor(sheet)
   const dayRateEffectiveHourly = sheet.rateType === 'day_rate' ? effectiveHourlyRate(cost, qty) : null
 
   // Handle Enter key in inputs
@@ -959,6 +1024,22 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
     if (e.key === 'Enter') { e.preventDefault(); if (valid) onCommit() }
     if (e.key === 'Escape') onClose()
   }
+
+  const subtitle =
+    sheet.rateType === 'day_rate' ? t('subtitleDayRate')
+    : sheet.rateType === 'hourly' ? t('subtitleHourly')
+    : sheet.rateType === 'fixed'  ? t('subtitleFixedRate')
+    : sheet.type === 'labour'     ? t('subtitleLabour', { rate: rateCard.labour_rate_per_hour })
+    : sheet.type === 'material'   ? t('subtitleMaterial', { markup: rateCard.material_markup_percent })
+    : t('subtitleFixed')
+
+  const placeholder =
+    sheet.rateType === 'day_rate' ? t('placeholderDayRate')
+    : sheet.rateType === 'hourly' ? t('placeholderHourly')
+    : sheet.rateType === 'fixed'  ? t('placeholderFixedRate')
+    : sheet.type === 'labour'     ? t('placeholderLabour')
+    : sheet.type === 'material'   ? t('placeholderMaterial')
+    : t('placeholderFixed')
 
   return (
     <>
@@ -994,15 +1075,10 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
               </div>
               <div>
                 <p className="text-sm font-bold text-on-surface">
-                  {isEditing ? `Edit ${cfg.label}` : `Add ${cfg.label}`}
+                  {isEditing ? t('editItemTitle', { label }) : t('addItemTitle', { label })}
                 </p>
                 <p className="text-xs text-muted">
-                  {sheet.rateType === 'day_rate' ? 'Flat amount for one day — hours/day is for reference only'
-                    : sheet.rateType === 'hourly' ? 'This rate × hours, for one occurrence'
-                    : sheet.rateType === 'fixed'  ? 'Fixed amount for one occurrence, no markup'
-                    : sheet.type === 'labour'     ? `€${rateCard.labour_rate_per_hour}/hr from rate card`
-                    : sheet.type === 'material'   ? `+${rateCard.material_markup_percent}% markup applied`
-                    : 'Fixed price, no markup'}
+                  {subtitle}
                 </p>
               </div>
             </div>
@@ -1016,7 +1092,7 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
           {/* Label input */}
           <div className="mb-3">
             <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
-              Description
+              {t('descriptionLabel')}
             </label>
             <input
               ref={labelRef}
@@ -1024,23 +1100,16 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
               value={sheet.label}
               onChange={(e: ChangeEvent<HTMLInputElement>) => onChange({ label: e.target.value })}
               onKeyDown={onKeyDown}
-              placeholder={
-                sheet.rateType === 'day_rate' ? 'e.g. On-site supervision…' :
-                sheet.rateType === 'hourly'   ? 'e.g. Regular maintenance visit…' :
-                sheet.rateType === 'fixed'    ? 'e.g. Monthly service fee…' :
-                sheet.type === 'labour'       ? 'e.g. Install solar panels…' :
-                sheet.type === 'material'     ? 'e.g. 400W panel, cable…'   :
-                                                 'e.g. Permit fee, delivery…'
-              }
+              placeholder={placeholder}
               className="w-full h-13 rounded-xl border border-border bg-white px-4 py-3 text-base text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
             />
           </div>
 
           {/* Quantity + cost row */}
-          <div className={`grid gap-3 mb-4 ${cfg.showCost ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <div className={`grid gap-3 mb-4 ${showCost ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <div>
               <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
-                {cfg.qtyLabel}
+                {qtyLabel(t, sheet)}
               </label>
               <input
                 type="number"
@@ -1055,10 +1124,10 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
               />
             </div>
 
-            {cfg.showCost && (
+            {showCost && (
               <div>
                 <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
-                  {cfg.costLabel}
+                  {costLabel(t, sheet)}
                 </label>
                 <input
                   type="number"
@@ -1083,7 +1152,7 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
                 <span>{formatEuro(qty * cost)}</span>
               </div>
               <div className="flex justify-between">
-                <span>+{rateCard.material_markup_percent}% markup</span>
+                <span>{t('materialMarkup', { percent: rateCard.material_markup_percent })}</span>
                 <span>+{formatEuro(qty * cost * rateCard.material_markup_percent / 100)}</span>
               </div>
             </div>
@@ -1093,8 +1162,8 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
           {sheet.rateType === 'day_rate' && dayRateEffectiveHourly != null && (
             <div className="bg-amber-50 rounded-xl px-4 py-2.5 mb-4 text-xs text-amber-700">
               <div className="flex justify-between">
-                <span>Effective rate ({qty} hrs/day)</span>
-                <span>{formatEuro(dayRateEffectiveHourly)}/hr</span>
+                <span>{t('effectiveRate', { qty })}</span>
+                <span>{formatEuro(dayRateEffectiveHourly)}/{t('hourUnit')}</span>
               </div>
             </div>
           )}
@@ -1104,7 +1173,7 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
             valid ? 'bg-teal-100' : 'bg-surface border border-border'
           }`}>
             <span className={`text-sm font-medium ${valid ? 'text-teal-700' : 'text-muted'}`}>
-              Line total (ex. VAT)
+              {t('lineTotalExVat')}
             </span>
             <span className={`text-xl font-bold ${valid ? 'text-teal-500' : 'text-muted'}`}>
               {formatEuro(preview)}
@@ -1117,7 +1186,7 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
             disabled={!valid}
             className="w-full h-13 rounded-xl bg-teal-500 text-white font-semibold text-base hover:bg-teal-700 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {isEditing ? 'Update item' : `Add ${cfg.label.toLowerCase()} to quote`}
+            {isEditing ? t('updateItem') : t('addItemToQuote', { label: label.toLowerCase() })}
           </button>
 
           {isEditing && (
@@ -1125,7 +1194,7 @@ function AddItemSheet({ sheet, rateCard, preview, labelRef, onClose, onCommit, o
               onClick={onDelete}
               className="w-full mt-2 h-11 rounded-xl text-red-500 text-sm font-semibold hover:bg-red-50 transition"
             >
-              Delete this item
+              {t('deleteThisItem')}
             </button>
           )}
         </div>

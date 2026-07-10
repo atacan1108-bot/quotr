@@ -5,6 +5,7 @@
  * one yet, same as the rest of Settings.
  */
 import { NextResponse } from 'next/server'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
 import { sanitizeTemplateHtml } from '@/lib/sanitizeTemplateHtml'
 
@@ -13,23 +14,25 @@ const MAX_CHARS = 2 * 1024 * 1024
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const tErrors = await getTranslations('errors')
   if (!user) {
-    return NextResponse.json({ error: 'You need to be logged in.' }, { status: 401 })
+    return NextResponse.json({ error: tErrors('notLoggedIn') }, { status: 401 })
   }
 
   let body: { html?: string }
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+    return NextResponse.json({ error: tErrors('invalidRequest') }, { status: 400 })
   }
 
+  const tTemplate = await getTranslations('templateUpload')
   const html = body.html
   if (!html || !html.trim()) {
-    return NextResponse.json({ error: 'No template HTML was sent.' }, { status: 400 })
+    return NextResponse.json({ error: tTemplate('noTemplateHtml') }, { status: 400 })
   }
   if (html.length > MAX_CHARS) {
-    return NextResponse.json({ error: 'That template is too large — please simplify it.' }, { status: 413 })
+    return NextResponse.json({ error: tTemplate('templateTooLarge') }, { status: 413 })
   }
 
   const sanitizedHtml = sanitizeTemplateHtml(html)

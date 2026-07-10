@@ -94,6 +94,10 @@ export interface RateCard {
   // Whether recurring quotes DISPLAY their period totals excluding VAT
   // (common for B2B contracts). One-off pricing is unaffected by this.
   prices_shown_excluding_vat: boolean
+
+  // The contractor's own app language (the "NL | EN" corner switch).
+  // Independent of any single quote's language — see Job.language below.
+  language: 'nl' | 'en'
 }
 
 export type JobStatus = 'draft' | 'quoted' | 'sent' | 'accepted' | 'declined'
@@ -129,6 +133,11 @@ export interface Job {
   line_items:  LineItem[]
   quote_type:        QuoteType
   recurring_config:  RecurringConfig | null
+  // This QUOTE's own language — defaults to the contractor's app language
+  // at creation time, changeable per quote afterward. Drives the PDF, the
+  // public share page, and the AI wording for THIS quote, independent of
+  // the contractor's own current app language (RateCard.language).
+  language: 'nl' | 'en'
 }
 
 export interface Proposal {
@@ -229,6 +238,7 @@ export const DEFAULT_RATE_CARD: Omit<RateCard, 'id' | 'created_at' | 'owner_id'>
   branding:                EMPTY_BRANDING,
   template_html:           null,
   prices_shown_excluding_vat: false,
+  language: 'nl',
 }
 
 export const DEFAULT_RECURRING_CONFIG: RecurringConfig = {

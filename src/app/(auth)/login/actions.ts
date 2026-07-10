@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
+import { syncLocaleFromRateCard } from '@/lib/locale'
 
 export type LoginState = { error: string } | null
 
@@ -16,13 +18,15 @@ export async function loginAction(
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
+    const t = await getTranslations('auth.login')
     const msg = error.message.toLowerCase()
     if (msg.includes('email not confirmed'))
-      return { error: 'Bevestig eerst je e-mail. Check je inbox voor de bevestigingsmail.' }
+      return { error: t('emailNotConfirmed') }
     if (msg.includes('invalid login') || msg.includes('invalid credentials'))
-      return { error: 'E-mailadres of wachtwoord klopt niet.' }
+      return { error: t('invalidCredentials') }
     return { error: error.message }
   }
 
+  await syncLocaleFromRateCard()
   redirect('/quotes')
 }

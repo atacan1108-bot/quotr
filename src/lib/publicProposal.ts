@@ -11,6 +11,7 @@ import { createAdminClient } from './supabase/admin'
 import { calculateProposal } from './pricing'
 import type { ProposalBreakdown } from './pricing'
 import { EMPTY_BRANDING, type Branding } from './types'
+import type { Locale } from '@/i18n/config'
 
 /** How many days after creation a quote can still be accepted. Not stored —
  * computed from created_at so there's no schema field to keep in sync. */
@@ -23,6 +24,7 @@ export interface PublicQuoteView {
   createdAt:   string
   expiresAt:   string
   status:      PublicQuoteStatus
+  language:    Locale
   jobTitle:    string
   clientName:  string | null
   coverNote:   string | null
@@ -73,7 +75,7 @@ export async function getPublicProposalByToken(token: string): Promise<PublicQuo
 
   const { data: job } = await admin
     .from('jobs')
-    .select('id, title, line_items, client_id, status')
+    .select('id, title, line_items, client_id, status, language')
     .eq('id', proposal.job_id)
     .maybeSingle()
   if (!job) return null
@@ -123,6 +125,7 @@ export async function getPublicProposalByToken(token: string): Promise<PublicQuo
     createdAt:  proposal.created_at,
     expiresAt:  expiresAt.toISOString(),
     status,
+    language:   job.language,
     jobTitle:   job.title,
     clientName,
     coverNote:  proposal.cover_note,

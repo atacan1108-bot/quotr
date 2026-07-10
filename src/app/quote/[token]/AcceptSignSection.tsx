@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import SignaturePad from './SignaturePad'
+import { pdfLabels, thankYouNotifiedLabel, signedByLabel } from '@/lib/pdf/pdfLabels'
+import type { Locale } from '@/i18n/config'
 
 interface Props {
   token:            string
@@ -10,14 +12,16 @@ interface Props {
   initialSignerName: string | null
   initialSignedPdfUrl: string | null
   primaryColor:     string
+  language:         Locale
 }
 
 type Status = 'form' | 'submitting' | 'done' | 'error'
 type Mode   = 'draw' | 'type'
 
 export default function AcceptSignSection({
-  token, businessName, alreadyAccepted, initialSignerName, initialSignedPdfUrl, primaryColor,
+  token, businessName, alreadyAccepted, initialSignerName, initialSignedPdfUrl, primaryColor, language,
 }: Props) {
+  const l = pdfLabels(language)
   const [status, setStatus]   = useState<Status>(alreadyAccepted ? 'done' : 'form')
   const [error, setError]     = useState<string | null>(null)
   const [mode, setMode]       = useState<Mode>('draw')
@@ -49,14 +53,14 @@ export default function AcceptSignSection({
       try {
         data = await res.json()
       } catch {
-        throw new Error('Your session may have expired — please refresh the page and try again.')
+        throw new Error(l.sessionExpiredRetry)
       }
-      if (!res.ok || !data?.ok) throw new Error(data?.error || 'Something went wrong — please try again.')
+      if (!res.ok || !data?.ok) throw new Error(data?.error || l.somethingWentWrongRetry)
 
       setSignedPdfUrl(data.signedPdfUrl ?? null)
       setStatus('done')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong — please try again.')
+      setError(err instanceof Error ? err.message : l.somethingWentWrongRetry)
       setStatus('error')
     }
   }
@@ -67,9 +71,9 @@ export default function AcceptSignSection({
         <svg className="w-8 h-8 text-teal-700 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
         </svg>
-        <p className="font-semibold text-teal-700">Thank you — {businessName} has been notified.</p>
+        <p className="font-semibold text-teal-700">{thankYouNotifiedLabel(language, businessName)}</p>
         {initialSignerName && (
-          <p className="text-sm text-teal-700/80 mt-1">Signed by {initialSignerName}</p>
+          <p className="text-sm text-teal-700/80 mt-1">{signedByLabel(language, initialSignerName)}</p>
         )}
         {signedPdfUrl && (
           <a
@@ -78,7 +82,7 @@ export default function AcceptSignSection({
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center h-11 px-5 mt-4 rounded-xl bg-white border border-teal-500/30 text-teal-700 font-semibold text-sm hover:bg-teal-50 transition"
           >
-            Download your signed copy
+            {l.downloadSignedCopy}
           </a>
         )}
       </div>
@@ -87,8 +91,8 @@ export default function AcceptSignSection({
 
   return (
     <div className="bg-white rounded-2xl border border-border p-5">
-      <h3 className="text-sm font-bold mb-1" style={{ color: primaryColor }}>Accept &amp; sign</h3>
-      <p className="text-xs text-muted mb-4">Sign below to accept this quote and its terms.</p>
+      <h3 className="text-sm font-bold mb-1" style={{ color: primaryColor }}>{l.acceptSignTitle}</h3>
+      <p className="text-xs text-muted mb-4">{l.acceptSignSubtitle}</p>
 
       {/* Draw / type toggle */}
       <div className="flex gap-2 mb-4">
@@ -98,7 +102,7 @@ export default function AcceptSignSection({
           className={`flex-1 h-10 rounded-xl text-sm font-medium transition ${mode === 'draw' ? 'text-white' : 'border border-border text-muted hover:bg-surface'}`}
           style={mode === 'draw' ? { backgroundColor: primaryColor } : undefined}
         >
-          Draw signature
+          {l.drawSignature}
         </button>
         <button
           type="button"
@@ -106,34 +110,34 @@ export default function AcceptSignSection({
           className={`flex-1 h-10 rounded-xl text-sm font-medium transition ${mode === 'type' ? 'text-white' : 'border border-border text-muted hover:bg-surface'}`}
           style={mode === 'type' ? { backgroundColor: primaryColor } : undefined}
         >
-          Type signature
+          {l.typeSignature}
         </button>
       </div>
 
       {/* Name field — also serves as the visible signature in "type" mode */}
       <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
-        Your full name
+        {l.yourFullName}
       </label>
       <input
         type="text"
         value={signerName}
         onChange={e => setSignerName(e.target.value)}
-        placeholder="Jane Doe"
+        placeholder={l.namePlaceholder}
         className="w-full h-12 rounded-xl border border-border bg-white px-3.5 text-base text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition mb-4"
       />
 
       {mode === 'draw' ? (
         <div className="mb-4">
           <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
-            Signature
+            {l.signatureLabel}
           </label>
-          <SignaturePad onChange={setSignatureDataUrl} />
+          <SignaturePad onChange={setSignatureDataUrl} language={language} />
         </div>
       ) : (
         nameEntered && (
           <div className="mb-4 rounded-xl border-2 border-dashed border-border bg-surface px-4 py-5 text-center">
             <p className="text-2xl" style={{ fontFamily: 'cursive', color: primaryColor }}>{signerName}</p>
-            <p className="text-xs text-muted mt-2">This typed name will appear as your signature</p>
+            <p className="text-xs text-muted mt-2">{l.typedSignaturePreview}</p>
           </div>
         )
       )}
@@ -147,7 +151,7 @@ export default function AcceptSignSection({
           className="mt-0.5 w-5 h-5 rounded border-border text-teal-500 focus:ring-teal-500 shrink-0"
         />
         <span className="text-sm text-on-surface">
-          I accept this quote and its terms &amp; conditions.
+          {l.agreeToTerms}
         </span>
       </label>
 
@@ -172,9 +176,9 @@ export default function AcceptSignSection({
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Submitting…
+            {l.submitting}
           </>
-        ) : 'Accept & Sign'}
+        ) : l.acceptAndSign}
       </button>
     </div>
   )

@@ -1,6 +1,7 @@
 import React from 'react'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { headers } from 'next/headers'
+import { getTranslations } from 'next-intl/server'
 import { getQuoteExportData } from '@/lib/quoteData'
 import { QuotePDF } from '@/app/quotes/[id]/QuotePDF'
 
@@ -17,7 +18,8 @@ export async function GET(
 
   const data = await getQuoteExportData(id, baseUrl)
   if (!data) {
-    return new Response('Quote not found or not authorised', { status: 404 })
+    const tErrors = await getTranslations('errors')
+    return new Response(tErrors('quoteNotFoundOrUnauthorized'), { status: 404 })
   }
 
   const buffer = await renderToBuffer(<QuotePDF data={data} />)

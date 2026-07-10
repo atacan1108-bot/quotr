@@ -22,6 +22,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 
 type Phase = 'verifying' | 'ready' | 'invalid' | 'saving' | 'done'
@@ -32,6 +33,7 @@ function ResetPasswordInner() {
   const supabase = createClient()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const t = useTranslations('auth.resetPassword')
 
   const [phase, setPhase]               = useState<Phase>('verifying')
   const [invalidReason, setInvalidReason] = useState<string | null>(null)
@@ -99,11 +101,11 @@ function ResetPasswordInner() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (password.length < 8) {
-      setError('Wachtwoord moet minimaal 8 tekens zijn.')
+      setError(t('tooShort'))
       return
     }
     if (password !== confirm) {
-      setError('Wachtwoorden komen niet overeen.')
+      setError(t('mismatch'))
       return
     }
 
@@ -123,7 +125,7 @@ function ResetPasswordInner() {
   if (phase === 'verifying') {
     return (
       <Shell>
-        <p className="text-sm text-muted text-center">Link verifiëren…</p>
+        <p className="text-sm text-muted text-center">{t('verifying')}</p>
       </Shell>
     )
   }
@@ -131,16 +133,16 @@ function ResetPasswordInner() {
   if (phase === 'invalid') {
     return (
       <Shell>
-        <h1 className="text-xl font-semibold text-on-surface mb-2 text-center">Link ongeldig of verlopen</h1>
+        <h1 className="text-xl font-semibold text-on-surface mb-2 text-center">{t('invalidTitle')}</h1>
         <p className="text-sm text-muted mb-6 text-center">
-          {invalidReason || 'Deze resetlink werkt niet meer — vraag een nieuwe aan.'}
+          {invalidReason || t('invalidBodyDefault')}
         </p>
         <Link
           href="/forgot-password"
           className="inline-flex h-12 px-6 items-center justify-center w-full rounded-xl text-white font-semibold text-sm transition"
           style={{ backgroundColor: ACCENT }}
         >
-          Nieuwe link aanvragen
+          {t('requestNewLink')}
         </Link>
       </Shell>
     )
@@ -150,7 +152,7 @@ function ResetPasswordInner() {
     return (
       <Shell>
         <p className="text-sm font-medium text-center" style={{ color: ACCENT }}>
-          Wachtwoord gewijzigd — je kunt nu inloggen. Je wordt doorgestuurd…
+          {t('successMessage')}
         </p>
       </Shell>
     )
@@ -158,13 +160,13 @@ function ResetPasswordInner() {
 
   return (
     <Shell>
-      <h1 className="text-xl font-semibold text-on-surface mb-1">Nieuw wachtwoord instellen</h1>
-      <p className="text-sm text-muted mb-8">Kies een nieuw wachtwoord voor je account.</p>
+      <h1 className="text-xl font-semibold text-on-surface mb-1">{t('title')}</h1>
+      <p className="text-sm text-muted mb-8">{t('subtitle')}</p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
           <label className="block text-sm font-medium text-on-surface mb-1.5" htmlFor="password">
-            Nieuw wachtwoord
+            {t('newPassword')}
           </label>
           <input
             id="password"
@@ -177,13 +179,13 @@ function ResetPasswordInner() {
             value={password}
             onChange={e => setPassword(e.target.value)}
             className="w-full h-12 rounded-xl border border-border bg-white px-4 text-sm text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
-            placeholder="Minimaal 8 tekens"
+            placeholder={t('passwordPlaceholder')}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-on-surface mb-1.5" htmlFor="confirm">
-            Bevestig wachtwoord
+            {t('confirmPassword')}
           </label>
           <input
             id="confirm"
@@ -196,7 +198,7 @@ function ResetPasswordInner() {
             value={confirm}
             onChange={e => setConfirm(e.target.value)}
             className="w-full h-12 rounded-xl border border-border bg-white px-4 text-sm text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
-            placeholder="••••••••"
+            placeholder={t('confirmPlaceholder')}
           />
         </div>
 
@@ -210,16 +212,25 @@ function ResetPasswordInner() {
           className="h-12 w-full rounded-xl text-white font-semibold text-sm transition disabled:opacity-60 mt-2"
           style={{ backgroundColor: ACCENT }}
         >
-          {phase === 'saving' ? 'Opslaan…' : 'Wachtwoord opslaan'}
+          {phase === 'saving' ? t('submitting') : t('submit')}
         </button>
       </form>
     </Shell>
   )
 }
 
+function ResetPasswordFallback() {
+  const t = useTranslations('auth.resetPassword')
+  return (
+    <Shell>
+      <p className="text-sm text-muted text-center">{t('verifying')}</p>
+    </Shell>
+  )
+}
+
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<Shell><p className="text-sm text-muted text-center">Link verifiëren…</p></Shell>}>
+    <Suspense fallback={<ResetPasswordFallback />}>
       <ResetPasswordInner />
     </Suspense>
   )

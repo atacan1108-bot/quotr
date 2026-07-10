@@ -12,15 +12,14 @@ import {
   WidthType,
 } from 'docx'
 import { headers } from 'next/headers'
+import { getTranslations } from 'next-intl/server'
 import { getQuoteExportData } from '@/lib/quoteData'
-import { recurringRateItemText, RECURRING_RATE_LABELS } from '@/lib/pricing'
+import { pdfLabels, itemTypeLabel, recurringRateItemText, recurringRateLabel, vatLabel, generatedWithLabel } from '@/lib/pdf/pdfLabels'
+import { formatDate } from '@/lib/formatDate'
 
-// Dutch euro format: € 1.234,56
+// Money formatting stays nl-NL style regardless of quote language.
 const euro = (n: number) =>
   new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n)
-
-const fmtDate = (s: string) =>
-  new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(s))
 
 const TEAL = '0F766E'   // docx uses hex without '#'
 
@@ -83,15 +82,16 @@ export async function GET(
 
   const data = await getQuoteExportData(id, baseUrl)
   if (!data) {
-    return new Response('Quote not found or not authorised', { status: 404 })
+    const tErrors = await getTranslations('errors')
+    return new Response(tErrors('quoteNotFoundOrUnauthorized'), { status: 404 })
   }
 
   const { job, rateCard, breakdown, shareUrl } = data
   const client = job.clients
-
-  const TYPE_LABEL: Record<string, string> = {
-    labour: 'Arbeid', material: 'Materiaal', fixed: 'Vast',
-  }
+  // Customer-facing document — follows the QUOTE's own language, not
+  // whichever contractor happens to be logged in.
+  const locale = job.language
+  const l = pdfLabels(locale)
 
   // ── Build the document ─────────────────────────────────────────────────────
 
@@ -134,11 +134,11 @@ export async function GET(
           new Paragraph({ text: '', spacing: { after: 240 } }),
         ]),
 
-        // ── OFFERTE heading + date
+        // ── Quote heading + date
         new Paragraph({
           children: [
-            new TextRun({ text: 'OFFERTE', bold: true, size: 28, color: '1C1C1E' }),
-            new TextRun({ text: `   ${fmtDate(job.created_at)}`, color: '6E7580', size: 20 }),
+            new TextRun({ text: l.quote.toUpperCase(), bold: true, size: 28, color: '1C1C1E' }),
+            new TextRun({ text: `   ${formatDate(job.created_at, locale)}`, color: '6E7580', size: 20 }),
           ],
           spacing: { after: 160 },
         }),
@@ -146,7 +146,7 @@ export async function GET(
         // ── Client details
         ...(client ? [
           new Paragraph({
-            children: [new TextRun({ text: 'KLANT', bold: true, size: 16, color: '6E7580' })],
+            children: [new TextRun({ text: l.client.toUpperCase(), bold: true, size: 16, color: '6E7580' })],
           }),
           new Paragraph({
             children: [new TextRun({ text: client.name, bold: true, size: 22 })],
@@ -159,7 +159,7 @@ export async function GET(
         // ── Job title
         new Paragraph({
           children: [
-            new TextRun({ text: 'WERKZAAMHEDEN  ', bold: true, size: 16, color: '6E7580' }),
+            new TextRun({ text: `${l.workDescription.toUpperCase()}  `, bold: true, size: 16, color: '6E7580' }),
             new TextRun({ text: job.title, size: 22 }),
           ],
           spacing: { before: 240, after: 320 },
@@ -167,7 +167,7 @@ export async function GET(
 
         // ── Line items table
         new Paragraph({
-          children: [new TextRun({ text: 'REGELPOSTEN', bold: true, size: 16, color: '6E7580' })],
+          children: [new TextRun({ text: l.lineItems.toUpperCase(), bold: true, size: 16, color: '6E7580' })],
           spacing: { after: 80 },
         }),
 
@@ -178,10 +178,10 @@ export async function GET(
             new TableRow({
               tableHeader: true,
               children: [
-                headerCell('Omschrijving'),
-                headerCell('Type'),
-                headerCell('Aantal'),
-                headerCell('Bedrag'),
+                headerCell(l.description),
+                headerCell(l.type),
+                headerCell(l.quantity),
+                headerCell(l.amount),
               ],
             }),
 
@@ -200,7 +200,7 @@ export async function GET(
                         new Paragraph({
                           children: [
                             new TextRun({
-                              text: `${euro(item.base_cost)} + ${rateCard.material_markup_percent}% markup`,
+                              text: `${euro(item.base_cost)} + ${rateCard.material_markup_percent}% ${l.markupSuffix}`,
                               color: '6E7580', size: 16,
                             }),
                           ],
@@ -208,11 +208,11 @@ export async function GET(
                       ] : []),
                     ],
                   }),
-                  bodyCell(item.rate_type ? RECURRING_RATE_LABELS[item.rate_type] : (TYPE_LABEL[item.type] ?? item.type)),
+                  bodyCell(item.rate_type ? recurringRateLabel(locale, item.rate_type) : itemTypeLabel(locale, item.type)),
                   bodyCell(
                     item.rate_type
-                      ? recurringRateItemText(item.rate_type, item.quantity, item.unit_cost).quantityText
-                      : item.type === 'labour' ? `${item.quantity} u` : `${item.quantity} st`,
+                      ? recurringRateItemText(locale, item.rate_type, item.quantity, item.unit_cost).quantityText
+                      : item.type === 'labour' ? `${item.quantity} ${l.hourUnit}` : `${item.quantity} ${l.unitUnit}`,
                     { right: true },
                   ),
                   bodyCell(euro(item.line_total), { bold: true, right: true }),
@@ -229,7 +229,7 @@ export async function GET(
           new Paragraph({
             alignment: AlignmentType.RIGHT,
             children: [
-              new TextRun({ text: `Arbeid: ${euro(breakdown.labour_total)}`, size: 18, color: '6E7580' }),
+              new TextRun({ text: `${l.itemTypeLabour}: ${euro(breakdown.labour_total)}`, size: 18, color: '6E7580' }),
             ],
           }),
         ] : []),
@@ -238,7 +238,7 @@ export async function GET(
           new Paragraph({
             alignment: AlignmentType.RIGHT,
             children: [
-              new TextRun({ text: `Materiaal: ${euro(breakdown.material_total)}`, size: 18, color: '6E7580' }),
+              new TextRun({ text: `${l.itemTypeMaterial}: ${euro(breakdown.material_total)}`, size: 18, color: '6E7580' }),
             ],
           }),
         ] : []),
@@ -247,7 +247,7 @@ export async function GET(
           new Paragraph({
             alignment: AlignmentType.RIGHT,
             children: [
-              new TextRun({ text: `Vast: ${euro(breakdown.fixed_total)}`, size: 18, color: '6E7580' }),
+              new TextRun({ text: `${l.itemTypeFixed}: ${euro(breakdown.fixed_total)}`, size: 18, color: '6E7580' }),
             ],
           }),
         ] : []),
@@ -255,7 +255,7 @@ export async function GET(
         new Paragraph({
           alignment: AlignmentType.RIGHT,
           children: [
-            new TextRun({ text: `Subtotaal (excl. BTW): ${euro(breakdown.subtotal)}`, size: 18, color: '6E7580' }),
+            new TextRun({ text: `${l.subtotalExclVat}: ${euro(breakdown.subtotal)}`, size: 18, color: '6E7580' }),
           ],
         }),
 
@@ -263,7 +263,7 @@ export async function GET(
           alignment: AlignmentType.RIGHT,
           children: [
             new TextRun({
-              text: `BTW ${breakdown.vat_percent}%: ${euro(breakdown.vat_amount)}`,
+              text: `${vatLabel(locale, breakdown.vat_percent)}: ${euro(breakdown.vat_amount)}`,
               size: 18, color: '6E7580',
             }),
           ],
@@ -275,7 +275,7 @@ export async function GET(
           spacing: { before: 80, after: 320 },
           children: [
             new TextRun({
-              text: `Totaal incl. BTW: ${euro(breakdown.total)}`,
+              text: `${l.totalInclVat}: ${euro(breakdown.total)}`,
               bold: true, size: 26, color: TEAL,
             }),
           ],
@@ -285,7 +285,7 @@ export async function GET(
         ...(shareUrl ? [
           new Paragraph({
             children: [
-              new TextRun({ text: 'Bekijk en accepteer online: ', size: 18, color: '6E7580' }),
+              new TextRun({ text: `${l.viewAndAcceptOnline} `, size: 18, color: '6E7580' }),
               new TextRun({ text: shareUrl, size: 18, color: TEAL }),
             ],
           }),
@@ -294,7 +294,7 @@ export async function GET(
         new Paragraph({
           children: [
             new TextRun({
-              text: `Gegenereerd met Quotr · Alle prijzen in euro (€) · BTW ${breakdown.vat_percent}%`,
+              text: generatedWithLabel(locale, breakdown.vat_percent),
               size: 16, color: '6E7580',
             }),
           ],
@@ -315,7 +315,7 @@ export async function GET(
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type':        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Content-Disposition': `attachment; filename="offerte-${safeName}.docx"`,
+      'Content-Disposition': `attachment; filename="${l.quote.toLowerCase()}-${safeName}.docx"`,
       'Cache-Control':       'no-store',
     },
   })

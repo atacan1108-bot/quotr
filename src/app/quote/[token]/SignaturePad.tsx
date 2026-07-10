@@ -7,14 +7,18 @@
  * strays outside the canvas mid-stroke.
  */
 import { useRef, useState, useLayoutEffect } from 'react'
+import { pdfLabels } from '@/lib/pdf/pdfLabels'
+import type { Locale } from '@/i18n/config'
 
 interface Props {
   onChange: (dataUrl: string | null) => void
+  language: Locale
 }
 
 const HEIGHT = 160
 
-export default function SignaturePad({ onChange }: Props) {
+export default function SignaturePad({ onChange, language }: Props) {
+  const l = pdfLabels(language)
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const drawingRef   = useRef(false)
@@ -110,14 +114,14 @@ export default function SignaturePad({ onChange }: Props) {
         />
       </div>
       <div className="flex items-center justify-between mt-2">
-        <p className="text-xs text-muted">{hasSignature ? 'Looks good.' : 'Draw your signature above'}</p>
+        <p className="text-xs text-muted">{hasSignature ? l.signatureLooksGood : l.signatureDrawPrompt}</p>
         {hasSignature && (
           <button
             type="button"
             onClick={clear}
             className="text-xs font-medium text-muted hover:text-red-500 transition"
           >
-            Clear
+            {l.signatureClear}
           </button>
         )}
       </div>

@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist } from 'next/font/google'
+import { NextIntlClientProvider } from 'next-intl'
+import { getLocale } from 'next-intl/server'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
 import './globals.css'
 
 const geist = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
@@ -26,16 +29,20 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale()
   return (
-    <html lang="en" className={geist.variable}>
+    <html lang={locale} className={geist.variable}>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="bg-surface text-on-surface antialiased">
 
-        {children}
+        <NextIntlClientProvider>
+          <LanguageSwitcher />
+          {children}
+        </NextIntlClientProvider>
 
         {/*
           SW registration: when a new service worker takes over via clients.claim(),

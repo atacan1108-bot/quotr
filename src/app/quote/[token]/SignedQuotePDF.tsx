@@ -10,7 +10,9 @@
  */
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer'
 import type { PublicQuoteView } from '@/lib/publicProposal'
-import { euro, fmtDate, createPdfStyles, DEFAULT_PRIMARY, TYPE_META } from '@/lib/pdf/shared'
+import { euro, createPdfStyles, DEFAULT_PRIMARY } from '@/lib/pdf/shared'
+import { pdfLabels, typeMeta, vatLabel } from '@/lib/pdf/pdfLabels'
+import { formatDate } from '@/lib/formatDate'
 
 interface Props {
   quote:             PublicQuoteView
@@ -23,10 +25,12 @@ export function SignedQuotePDF({ quote, signerName, signatureDataUrl, signedAt }
   const { business, breakdown } = quote
   const businessName = business.name ?? 'Quotr'
   const s = createPdfStyles(quote.branding.primaryColor || DEFAULT_PRIMARY)
+  const locale = quote.language
+  const l = pdfLabels(locale)
 
   return (
     <Document
-      title={`Signed quote for ${quote.clientName ?? quote.jobTitle}`}
+      title={`${l.quoteFor} ${quote.clientName ?? quote.jobTitle}`}
       author={businessName}
       creator="Quotr"
     >
@@ -47,13 +51,13 @@ export function SignedQuotePDF({ quote, signerName, signatureDataUrl, signedAt }
         <View style={s.headerRule} />
 
         {/* ── Quote for [client] + date ─────────────────────────── */}
-        <Text style={s.quoteTitle}>Quote for {quote.clientName ?? 'you'}</Text>
-        <Text style={s.quoteDate}>{fmtDate(new Date(quote.createdAt))}</Text>
+        <Text style={s.quoteTitle}>{l.quoteFor} {quote.clientName ?? l.you}</Text>
+        <Text style={s.quoteDate}>{formatDate(quote.createdAt, locale)}</Text>
 
         {/* ── Cover note ─────────────────────────────────────────── */}
         {quote.coverNote && (
           <View style={s.panel}>
-            <Text style={s.panelLabel}>A note from {businessName}</Text>
+            <Text style={s.panelLabel}>{l.aNoteFrom} {businessName}</Text>
             <Text style={s.panelText}>{quote.coverNote}</Text>
           </View>
         )}
@@ -61,23 +65,23 @@ export function SignedQuotePDF({ quote, signerName, signatureDataUrl, signedAt }
         {/* ── Scope of work ──────────────────────────────────────── */}
         {quote.scopeText && (
           <View style={s.panel}>
-            <Text style={s.panelLabel}>Scope of work</Text>
+            <Text style={s.panelLabel}>{l.scopeOfWork}</Text>
             <Text style={s.panelText}>{quote.scopeText}</Text>
           </View>
         )}
 
         {/* ── Itemized table — straight from the pricing engine ──── */}
-        <Text style={s.sectionLabel}>Quote breakdown</Text>
+        <Text style={s.sectionLabel}>{l.quoteBreakdown}</Text>
         <View style={s.tableHeadRow}>
-          <Text style={[s.tableHeadTxt, s.wDesc]}>Description</Text>
-          <Text style={[s.tableHeadTxt, s.wAmount]}>Amount</Text>
+          <Text style={[s.tableHeadTxt, s.wDesc]}>{l.description}</Text>
+          <Text style={[s.tableHeadTxt, s.wAmount]}>{l.amount}</Text>
         </View>
 
         {breakdown.items.map((item, i) => (
           <View key={i} style={i % 2 === 0 ? s.row : s.rowAlt}>
             <View style={s.wDesc}>
               <Text style={s.itemLabel}>{item.label}</Text>
-              <Text style={s.itemMeta}>{(TYPE_META[item.type] ?? (() => ''))(item.quantity)}</Text>
+              <Text style={s.itemMeta}>{typeMeta(locale, item.type, item.quantity)}</Text>
             </View>
             <Text style={[s.amount, s.wAmount]}>{euro(item.line_total)}</Text>
           </View>
@@ -86,26 +90,26 @@ export function SignedQuotePDF({ quote, signerName, signatureDataUrl, signedAt }
         {/* ── Totals ──────────────────────────────────────────────── */}
         <View style={s.totalsBlock}>
           <View style={s.totRow}>
-            <Text style={s.totLabel}>Subtotal</Text>
+            <Text style={s.totLabel}>{l.subtotal}</Text>
             <Text style={s.totVal}>{euro(breakdown.subtotal)}</Text>
           </View>
           <View style={s.totRow}>
-            <Text style={s.totLabel}>VAT ({breakdown.vat_percent}%)</Text>
+            <Text style={s.totLabel}>{vatLabel(locale, breakdown.vat_percent)}</Text>
             <Text style={s.totVal}>{euro(breakdown.vat_amount)}</Text>
           </View>
           <View style={s.grandRow}>
-            <Text style={s.grandLabel}>Total</Text>
+            <Text style={s.grandLabel}>{l.total}</Text>
             <Text style={s.grandVal}>{euro(breakdown.total)}</Text>
           </View>
         </View>
 
         {/* ── Signed by ─────────────────────────────────────────────── */}
         <View style={s.signedBlock}>
-          <Text style={s.signedLabel}>Accepted &amp; signed</Text>
+          <Text style={s.signedLabel}>{l.acceptedAndSigned}</Text>
           <View style={s.signedRow}>
             <View>
               <Text style={s.signerName}>{signerName}</Text>
-              <Text style={s.signedDate}>{fmtDate(new Date(signedAt))} · Signed electronically via Quotr</Text>
+              <Text style={s.signedDate}>{formatDate(signedAt, locale)} · {l.signedElectronicallyVia}</Text>
             </View>
             {signatureDataUrl ? (
               // eslint-disable-next-line jsx-a11y/alt-text

@@ -2,10 +2,12 @@
 
 import { useActionState } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { loginAction } from './actions'
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(loginAction, null)
+  const t = useTranslations('auth.login')
 
   return (
     <div className="min-h-screen bg-surface flex flex-col items-center justify-center px-6 py-12">
@@ -19,13 +21,13 @@ export default function LoginPage() {
           <span className="ml-3 text-2xl font-semibold text-on-surface tracking-tight">Quotr</span>
         </div>
 
-        <h1 className="text-xl font-semibold text-on-surface mb-1">Welkom terug</h1>
-        <p className="text-sm text-muted mb-8">Log in om je offertes te beheren</p>
+        <h1 className="text-xl font-semibold text-on-surface mb-1">{t('welcomeBack')}</h1>
+        <p className="text-sm text-muted mb-8">{t('subtitle')}</p>
 
         <form action={formAction} className="flex flex-col gap-4">
           <div>
             <label className="block text-sm font-medium text-on-surface mb-1.5" htmlFor="email">
-              E-mailadres
+              {t('email')}
             </label>
             <input
               id="email"
@@ -38,17 +40,17 @@ export default function LoginPage() {
               spellCheck={false}
               required
               className="w-full h-12 rounded-xl border border-border bg-white px-4 text-sm text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
-              placeholder="jij@bedrijf.nl"
+              placeholder={t('emailPlaceholder')}
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-sm font-medium text-on-surface" htmlFor="password">
-                Wachtwoord
+                {t('password')}
               </label>
               <Link href="/forgot-password" className="text-sm text-teal-500 font-medium hover:text-teal-700">
-                Wachtwoord vergeten?
+                {t('forgotPassword')}
               </Link>
             </div>
             <input
@@ -76,14 +78,14 @@ export default function LoginPage() {
             disabled={isPending}
             className="h-12 w-full rounded-xl bg-teal-500 text-white font-semibold text-sm hover:bg-teal-700 active:bg-teal-700 transition disabled:opacity-60 mt-2"
           >
-            {isPending ? 'Inloggen…' : 'Inloggen'}
+            {isPending ? t('submitting') : t('submit')}
           </button>
         </form>
 
         <p className="text-center text-sm text-muted mt-6">
-          Nog geen account?{' '}
+          {t('noAccount')}{' '}
           <Link href="/register" className="text-teal-500 font-medium hover:text-teal-700">
-            Registreer je
+            {t('register')}
           </Link>
         </p>
 

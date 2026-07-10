@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, type ChangeEvent } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 import { EMPTY_BRANDING, type Branding } from '@/lib/types'
 import TemplateUploadSection from './TemplateUploadSection'
@@ -36,22 +37,23 @@ interface FieldErrors {
 // the exact brand hex used in the PDF and public share page.)
 const ACCENT = '#0F766E'
 
-function validate(labourRate: number, markupPercent: number, vatPercent: number): FieldErrors {
+function validate(t: ReturnType<typeof useTranslations<'settings'>>, labourRate: number, markupPercent: number, vatPercent: number): FieldErrors {
   const errors: FieldErrors = {}
   if (!Number.isFinite(labourRate) || labourRate < 0) {
-    errors.labourRate = 'Enter a rate of 0 or more.'
+    errors.labourRate = t('labourRateError')
   }
   if (!Number.isFinite(markupPercent) || markupPercent < 0) {
-    errors.markupPercent = 'Enter a markup of 0 or more.'
+    errors.markupPercent = t('markupError')
   }
   if (!Number.isFinite(vatPercent) || vatPercent < 0 || vatPercent > 100) {
-    errors.vatPercent = 'VAT must be between 0 and 100.'
+    errors.vatPercent = t('vatError')
   }
   return errors
 }
 
 export default function SettingsForm({ ownerId, initialRateCard }: Props) {
   const supabase = createClient()
+  const t = useTranslations('settings')
 
   const [rateCardId, setRateCardId] = useState(initialRateCard.id)
 
@@ -104,7 +106,7 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
       const { data } = supabase.storage.from('logos').getPublicUrl(path)
       setLogoUrl(data.publicUrl)
     } catch {
-      setSaveError('Could not upload that logo — please try a different image.')
+      setSaveError(t('logoUploadFailed'))
     } finally {
       setLogoUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -116,7 +118,7 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
     const markupPercent  = parseFloat(markupStr)
     const vatPercent     = parseFloat(vatStr)
 
-    const validationErrors = validate(labourRate, markupPercent, vatPercent)
+    const validationErrors = validate(t, labourRate, markupPercent, vatPercent)
     setErrors(validationErrors)
     if (Object.keys(validationErrors).length > 0) return
 
@@ -163,7 +165,7 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
       setJustSaved(true)
       setTimeout(() => setJustSaved(false), 2500)
     } catch {
-      setSaveError('Could not save your settings — please try again.')
+      setSaveError(t('saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -177,13 +179,13 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
 
       {/* ── Business identity ─────────────────────────────────────── */}
       <section className="bg-white rounded-2xl border border-border p-5">
-        <h2 className="text-sm font-bold mb-4" style={{ color: ACCENT }}>Business identity</h2>
+        <h2 className="text-sm font-bold mb-4" style={{ color: ACCENT }}>{t('businessIdentity')}</h2>
 
         <div className="flex items-center gap-4 mb-5">
           <div className="w-16 h-16 rounded-2xl border border-border bg-surface flex items-center justify-center overflow-hidden shrink-0">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="Business logo" className="w-full h-full object-contain" />
+              <img src={logoUrl} alt={t('businessLogoAlt')} className="w-full h-full object-contain" />
             ) : (
               <svg className="w-7 h-7 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 8.25V18a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 18V8.25m-18 0V6a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 6v2.25m-18 0h18" />
@@ -203,45 +205,45 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
               htmlFor="logo-upload"
               className="h-10 px-4 inline-flex items-center justify-center rounded-xl border border-border text-sm font-medium text-on-surface hover:bg-surface active:scale-[0.98] transition cursor-pointer"
             >
-              {logoUploading ? 'Uploading…' : logoUrl ? 'Change logo' : 'Upload logo'}
+              {logoUploading ? t('uploading') : logoUrl ? t('changeLogo') : t('uploadLogo')}
             </label>
             {logoUrl && !logoUploading && (
               <button
                 onClick={() => setLogoUrl(null)}
                 className="text-xs text-muted hover:text-red-500 transition text-left"
               >
-                Remove logo
+                {t('removeLogo')}
               </button>
             )}
           </div>
         </div>
 
         <div className="flex flex-col gap-3">
-          <Field label="Business name">
+          <Field label={t('businessName')}>
             <input
               type="text"
               value={businessName}
               onChange={e => setBusinessName(e.target.value)}
-              placeholder="Your Company BV"
+              placeholder={t('businessNamePlaceholder')}
               className={inputClass}
             />
           </Field>
-          <Field label="Address">
+          <Field label={t('address')}>
             <input
               type="text"
               value={businessAddress}
               onChange={e => setBusinessAddress(e.target.value)}
-              placeholder="Streetname 1, Amsterdam"
+              placeholder={t('addressPlaceholder')}
               className={inputClass}
             />
           </Field>
-          <Field label="Email">
+          <Field label={t('email')}>
             <input
               type="email"
               inputMode="email"
               value={businessEmail}
               onChange={e => setBusinessEmail(e.target.value)}
-              placeholder="you@yourcompany.nl"
+              placeholder={t('emailPlaceholder')}
               className={inputClass}
             />
           </Field>
@@ -250,10 +252,10 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
 
       {/* ── Branding ─────────────────────────────────────────────────── */}
       <section className="bg-white rounded-2xl border border-border p-5">
-        <h2 className="text-sm font-bold mb-4" style={{ color: ACCENT }}>Branding</h2>
+        <h2 className="text-sm font-bold mb-4" style={{ color: ACCENT }}>{t('branding')}</h2>
 
         <div className="grid grid-cols-2 gap-3 mb-3">
-          <Field label="Primary color">
+          <Field label={t('primaryColor')}>
             <div className="flex items-center gap-2">
               <input
                 type="color"
@@ -269,7 +271,7 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
               />
             </div>
           </Field>
-          <Field label="Accent color">
+          <Field label={t('accentColor')}>
             <div className="flex items-center gap-2">
               <input
                 type="color"
@@ -288,13 +290,13 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
         </div>
 
         <div className="flex flex-col gap-3">
-          <Field label="Font (web page only — PDFs stay Helvetica)">
+          <Field label={t('font')}>
             <select
               value={fontFamily}
               onChange={e => setFontFamily(e.target.value)}
               className={inputClass}
             >
-              <option value="">Default (system font)</option>
+              <option value="">{t('fontDefault')}</option>
               <option value="Georgia, serif">Georgia (serif)</option>
               <option value="'Times New Roman', serif">Times New Roman (serif)</option>
               <option value="Verdana, sans-serif">Verdana (sans-serif)</option>
@@ -302,39 +304,39 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
             </select>
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Phone">
+            <Field label={t('phone')}>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="030 123 4567" className={inputClass} />
             </Field>
-            <Field label="Website">
+            <Field label={t('website')}>
               <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="www.yourcompany.nl" className={inputClass} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="KvK number">
+            <Field label={t('kvkNumber')}>
               <input type="text" value={kvk} onChange={e => setKvk(e.target.value)} placeholder="87654321" className={inputClass} />
             </Field>
-            <Field label="BTW number">
+            <Field label={t('btwNumber')}>
               <input type="text" value={btw} onChange={e => setBtw(e.target.value)} placeholder="NL123456789B01" className={inputClass} />
             </Field>
           </div>
-          <Field label="IBAN">
+          <Field label={t('iban')}>
             <input type="text" value={iban} onChange={e => setIban(e.target.value)} placeholder="NL91ABNA0417164300" className={inputClass} />
           </Field>
-          <Field label="Footer tagline">
+          <Field label={t('footerTagline')}>
             <input
               type="text"
               value={footerText}
               onChange={e => setFooterText(e.target.value)}
-              placeholder="e.g. Your Company · City"
+              placeholder={t('footerTaglinePlaceholder')}
               className={inputClass}
             />
           </Field>
-          <Field label="Quote number prefix">
+          <Field label={t('quoteNumberPrefix')}>
             <input
               type="text"
               value={quoteNumberPrefix}
               onChange={e => setQuoteNumberPrefix(e.target.value)}
-              placeholder="e.g. 2026-"
+              placeholder={t('quoteNumberPrefixPlaceholder')}
               className={inputClass}
             />
           </Field>
@@ -343,9 +345,9 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
 
       {/* ── Pricing ──────────────────────────────────────────────────── */}
       <section className="bg-white rounded-2xl border border-border p-5">
-        <h2 className="text-sm font-bold mb-4" style={{ color: ACCENT }}>Pricing</h2>
+        <h2 className="text-sm font-bold mb-4" style={{ color: ACCENT }}>{t('pricing')}</h2>
         <div className="flex flex-col gap-3">
-          <Field label="Labour rate per hour (€)" error={errors.labourRate}>
+          <Field label={t('labourRatePerHour')} error={errors.labourRate}>
             <input
               type="number"
               inputMode="decimal"
@@ -356,7 +358,7 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
               className={inputClass}
             />
           </Field>
-          <Field label="Material markup (%)" error={errors.markupPercent}>
+          <Field label={t('materialMarkup')} error={errors.markupPercent}>
             <input
               type="number"
               inputMode="decimal"
@@ -367,7 +369,7 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
               className={inputClass}
             />
           </Field>
-          <Field label="VAT (%)" error={errors.vatPercent}>
+          <Field label={t('vatPercent')} error={errors.vatPercent}>
             <input
               type="number"
               inputMode="decimal"
@@ -384,14 +386,14 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
 
       {/* ── Recurring quote display ───────────────────────────────────── */}
       <section className="bg-white rounded-2xl border border-border p-5">
-        <h2 className="text-sm font-bold mb-1" style={{ color: ACCENT }}>Recurring quote display</h2>
-        <p className="text-xs text-muted mb-4">Recurring contracts price from the same line items as one-off jobs above, scaled by the contract terms entered on each quote.</p>
+        <h2 className="text-sm font-bold mb-1" style={{ color: ACCENT }}>{t('recurringDisplay')}</h2>
+        <p className="text-xs text-muted mb-4">{t('recurringDisplayBody')}</p>
         <button
           type="button"
           onClick={() => setPricesExVat(v => !v)}
           className="flex items-center justify-between h-12 px-3.5 rounded-xl border border-border bg-surface"
         >
-          <span className="text-sm font-medium text-on-surface text-left">Show recurring prices excluding VAT<br /><span className="text-xs text-muted font-normal">Common for B2B contracts</span></span>
+          <span className="text-sm font-medium text-on-surface text-left">{t('showExclVat')}<br /><span className="text-xs text-muted font-normal">{t('showExclVatSub')}</span></span>
           <span
             className="w-11 h-6 rounded-full relative transition shrink-0 ml-3"
             style={{ backgroundColor: pricesExVat ? ACCENT : 'var(--color-border)' }}
@@ -406,13 +408,13 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
 
       {/* ── Terms & conditions ─────────────────────────────────────────── */}
       <section className="bg-white rounded-2xl border border-border p-5">
-        <h2 className="text-sm font-bold mb-4" style={{ color: ACCENT }}>Terms &amp; conditions</h2>
-        <p className="text-xs text-muted mb-3">Appears in small print at the bottom of every quote PDF.</p>
+        <h2 className="text-sm font-bold mb-4" style={{ color: ACCENT }}>{t('termsConditions')}</h2>
+        <p className="text-xs text-muted mb-3">{t('termsBody')}</p>
         <textarea
           value={termsText}
           onChange={e => setTermsText(e.target.value)}
           rows={6}
-          placeholder="e.g. This quote is valid for 30 days. Payment due within 14 days of invoice. All work guaranteed for 2 years."
+          placeholder={t('termsPlaceholder')}
           className={`${inputClass} resize-y`}
         />
       </section>
@@ -439,16 +441,16 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Saving…
+            {t('saving')}
           </>
         ) : justSaved ? (
           <>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
             </svg>
-            Settings saved
+            {t('saved')}
           </>
-        ) : 'Save settings'}
+        ) : t('saveSettings')}
       </button>
     </div>
   )

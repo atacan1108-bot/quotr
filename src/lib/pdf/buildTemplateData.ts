@@ -14,14 +14,20 @@
  */
 import type { QuoteExportData } from '@/lib/quoteData'
 import type { TemplateData, TemplateLineItem } from '@/lib/htmlTemplate'
-import { euro, fmtDate, TYPE_META } from '@/lib/pdf/shared'
-import { recurringRateItemText } from '@/lib/pricing'
+import { euro } from '@/lib/pdf/shared'
+import { formatDate } from '@/lib/formatDate'
+import { pdfLabels, typeMeta, recurringRateItemText, vatLabel } from '@/lib/pdf/pdfLabels'
 
 export function buildTemplateData(data: QuoteExportData): { data: TemplateData; items: TemplateLineItem[]; isRecurring: boolean } {
   const { job, proposal, rateCard, breakdown, recurringPeriods, quoteSequence } = data
   const client = job.clients
   const branding = rateCard.branding
   const isRecurring = job.quote_type === 'recurring' && !!recurringPeriods
+  // Every piece of customer-facing text in this document follows the
+  // QUOTE's own language — independent of whoever is currently logged in
+  // and generating it. See src/i18n/config.ts for the two-locale model.
+  const locale = job.language
+  const l = pdfLabels(locale)
 
   const quoteNumber = quoteSequence != null
     ? `${branding?.quoteNumberPrefix ?? ''}${String(quoteSequence).padStart(3, '0')}`
@@ -46,7 +52,7 @@ export function buildTemplateData(data: QuoteExportData): { data: TemplateData; 
     customer_email:   client?.email ?? '',
     customer_phone:   client?.phone ?? '',
     quote_number:     quoteNumber,
-    quote_date:       fmtDate(proposal ? new Date(proposal.created_at) : new Date()),
+    quote_date:       formatDate(proposal ? new Date(proposal.created_at) : new Date(), locale),
     cover_note:       proposal?.cover_note ?? '',
     scope_text:       proposal?.scope_text ?? '',
     subtotal:         euro(breakdown.subtotal),
@@ -61,6 +67,30 @@ export function buildTemplateData(data: QuoteExportData): { data: TemplateData; 
     total_contract_term:   '',
     contract_term_months:  '',
     notice_period_months:  '',
+    lbl_quote:                   l.quote,
+    lbl_quote_for:               l.quoteFor,
+    lbl_a_note_from:             l.aNoteFrom,
+    lbl_client:                  l.client,
+    lbl_from:                    l.from,
+    lbl_details:                 l.details,
+    lbl_quote_number:            l.quoteNumber,
+    lbl_date:                    l.date,
+    lbl_description:             l.description,
+    lbl_quantity:                l.quantity,
+    lbl_rate:                    l.rate,
+    lbl_amount:                  l.amount,
+    lbl_subtotal:                l.subtotal,
+    lbl_vat:                     vatLabel(locale, breakdown.vat_percent),
+    lbl_total:                   l.total,
+    lbl_scope_of_work:           l.scopeOfWork,
+    lbl_terms_and_conditions:    l.termsAndConditions,
+    lbl_for_approval_contractor: l.forApprovalContractor,
+    lbl_for_approval_client:     l.forApprovalClient,
+    lbl_signature_and_date:      l.signatureAndDate,
+    lbl_initials:                l.initials,
+    lbl_page:                    l.page,
+    lbl_of:                      l.of,
+    lbl_dear:                    l.dear,
   }
 
   if (isRecurring) {
@@ -82,7 +112,7 @@ export function buildTemplateData(data: QuoteExportData): { data: TemplateData; 
   // item_unit_price tokens either way, just different text in them.
   const items: TemplateLineItem[] = breakdown.items.map(item => {
     if (item.rate_type) {
-      const { quantityText, rateText } = recurringRateItemText(item.rate_type, item.quantity, item.unit_cost)
+      const { quantityText, rateText } = recurringRateItemText(locale, item.rate_type, item.quantity, item.unit_cost)
       return {
         item_label:      item.label,
         item_quantity:   quantityText,
@@ -92,7 +122,7 @@ export function buildTemplateData(data: QuoteExportData): { data: TemplateData; 
     }
     return {
       item_label:      item.label,
-      item_quantity:   (TYPE_META[item.type] ?? (() => ''))(item.quantity),
+      item_quantity:   typeMeta(locale, item.type, item.quantity),
       item_unit_price: euro(item.unit_cost),
       item_total:      euro(item.line_total),
     }

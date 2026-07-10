@@ -16,12 +16,22 @@
  * throws rather than risk showing an invented price to a contractor.
  */
 import Anthropic from '@anthropic-ai/sdk'
+import type { Locale } from '@/i18n/config'
 
 const MODEL = 'claude-sonnet-5'
 
-const SYSTEM_PROMPT = `You are a copywriting assistant embedded in Quotr, an app contractors use to send price quotes to their clients. You write two short pieces of prose for each quote. You never see and must never invent prices — those are computed separately by the app's own pricing engine and inserted afterwards.
+// The QUOTE's own language (see src/i18n/config.ts) drives which language
+// the AI writes in — independent of whichever contractor is logged in and
+// clicked "Generate wording". Natural native prose, not a translation.
+const LANGUAGE_INSTRUCTION: Record<Locale, string> = {
+  nl: 'Write BOTH pieces of text entirely in natural, professional business Dutch (Nederlands). Write as a native Dutch business copywriter would — do not write in English and translate it, and avoid stiff or translation-flavored phrasing.',
+  en: 'Write BOTH pieces of text entirely in natural, professional business English. Write as a native English business copywriter would — do not write in another language and translate it, and avoid stiff or translation-flavored phrasing.',
+}
 
-Write in clear, professional but friendly business English suited to the Dutch contracting market — direct, warm, no filler, no hard sell.
+function systemPromptFor(locale: Locale): string {
+  return `You are a copywriting assistant embedded in Quotr, an app contractors use to send price quotes to their clients. You write two short pieces of prose for each quote. You never see and must never invent prices — those are computed separately by the app's own pricing engine and inserted afterwards.
+
+${LANGUAGE_INSTRUCTION[locale] ?? LANGUAGE_INSTRUCTION.nl} The writing style is clear, professional but friendly, suited to the Dutch contracting market — direct, warm, no filler, no hard sell.
 
 You will be given a job title, an optional client name, and either (a) a list of labour and material line items (with quantities but no cost data) for a one-off job, or (b) a recurring service contract's schedule (days/week, weeks/year, contract length, notice period, auto-renewal — no cost data). Produce exactly two pieces of text:
 
@@ -35,6 +45,7 @@ CRITICAL — absolute rules, no exceptions:
 - If a client name is not given, address them generically ("Hi there," or similar) rather than inventing a name.
 
 Respond with nothing but the two text blocks in the required JSON shape.`
+}
 
 export interface WordingLineItemInput {
   label:    string
@@ -56,6 +67,8 @@ export interface WordingInput {
   quoteType:       'one_off' | 'recurring'
   lineItems?:      WordingLineItemInput[]
   recurringConfig?: WordingRecurringConfigInput | null
+  // The QUOTE's own language — not the logged-in contractor's app language.
+  language:        Locale
 }
 
 export interface WordingResult {
@@ -149,7 +162,7 @@ Write scope_text and cover_note as instructed.`
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      system: systemPromptFor(input.language),
       messages: [{ role: 'user', content: userPrompt }],
       output_config: {
         format: { type: 'json_schema', schema: RESPONSE_SCHEMA },

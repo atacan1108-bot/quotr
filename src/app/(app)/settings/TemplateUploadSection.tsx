@@ -9,6 +9,7 @@
  * on the review screen, same "review before save" shape as before.
  */
 import { useRef, useState, type ChangeEvent } from 'react'
+import { useTranslations } from 'next-intl'
 import type { TemplateValidation } from '@/lib/htmlTemplate'
 
 interface Props {
@@ -31,6 +32,7 @@ async function readJsonError(res: Response, fallback: string): Promise<string> {
 }
 
 export default function TemplateUploadSection({ accent, hasExistingTemplate }: Props) {
+  const t = useTranslations('templateUpload')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [phase, setPhase] = useState<Phase>('idle')
@@ -59,12 +61,12 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
     setError(null)
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
     if (!['html', 'htm'].includes(ext)) {
-      setError('Please upload an .html file.')
+      setError(t('htmlOnly'))
       setPhase('error')
       return
     }
     if (file.size > MAX_FILE_MB * 1024 * 1024) {
-      setError(`That file is ${(file.size / 1024 / 1024).toFixed(1)} MB — please upload something under ${MAX_FILE_MB} MB.`)
+      setError(t('fileTooLarge', { size: (file.size / 1024 / 1024).toFixed(1), max: MAX_FILE_MB }))
       setPhase('error')
       return
     }
@@ -78,13 +80,13 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html }),
       })
-      if (!res.ok) throw new Error(await readJsonError(res, 'Could not read that file — please try again.'))
+      if (!res.ok) throw new Error(await readJsonError(res, t('readFailed')))
       const data: { sanitizedHtml: string; validation: TemplateValidation } = await res.json()
       setSanitizedHtml(data.sanitizedHtml)
       setValidation(data.validation)
       setPhase('review')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not read that file — please try again.')
+      setError(err instanceof Error ? err.message : t('readFailed'))
       setPhase('error')
     }
   }
@@ -99,13 +101,13 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html: sanitizedHtml }),
       })
-      if (!res.ok) throw new Error(await readJsonError(res, 'Could not render a preview — please try again.'))
+      if (!res.ok) throw new Error(await readJsonError(res, t('previewFailed')))
       const blob = await res.blob()
       if (previewUrl) URL.revokeObjectURL(previewUrl)
       setPreviewUrl(URL.createObjectURL(blob))
       setPhase('review')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not render a preview — please try again.')
+      setError(err instanceof Error ? err.message : t('previewFailed'))
       setPhase('review')
     }
   }
@@ -120,11 +122,11 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html: sanitizedHtml }),
       })
-      if (!res.ok) throw new Error(await readJsonError(res, 'Could not save your template — please try again.'))
+      if (!res.ok) throw new Error(await readJsonError(res, t('saveFailed')))
       setPhase('done')
       setTimeout(() => window.location.reload(), 900)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save your template — please try again.')
+      setError(err instanceof Error ? err.message : t('saveFailed'))
       setPhase('review')
     }
   }
@@ -133,7 +135,7 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
   if (phase === 'done') {
     return (
       <section className="bg-teal-100 rounded-2xl border border-teal-500/30 p-5 text-center">
-        <p className="font-semibold text-teal-700">Template saved — your quotes will now use this design.</p>
+        <p className="font-semibold text-teal-700">{t('savedTitle')}</p>
       </section>
     )
   }
@@ -144,28 +146,28 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
     return (
       <section className="bg-white rounded-2xl border border-border p-5">
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-sm font-bold" style={{ color: accent }}>Review your template</h2>
-          <button onClick={reset} className="text-xs text-muted hover:text-red-500 transition">Start over</button>
+          <h2 className="text-sm font-bold" style={{ color: accent }}>{t('reviewTitle')}</h2>
+          <button onClick={reset} className="text-xs text-muted hover:text-red-500 transition">{t('startOver')}</button>
         </div>
-        <p className="text-xs text-muted mb-4">{fileName} — nothing is saved yet.</p>
+        <p className="text-xs text-muted mb-4">{t('nothingSavedYet', { fileName: fileName ?? '' })}</p>
 
         {v && !v.hasLineItemsRegion && (
           <Notice tone="amber">
-            No LINE_ITEMS_START / LINE_ITEMS_END region found — your line items won&apos;t appear on the quote.
+            {t('noLineItemsRegion')}
           </Notice>
         )}
         {v && v.missingRequiredTokens.length > 0 && (
           <Notice tone="amber">
-            Missing token{v.missingRequiredTokens.length > 1 ? 's' : ''}: {v.missingRequiredTokens.map(t => `{{${t}}}`).join(', ')} — these usually matter on every quote.
+            {t('missingTokens', { count: v.missingRequiredTokens.length, tokens: v.missingRequiredTokens.map(tok => `{{${tok}}}`).join(', ') })}
           </Notice>
         )}
         {v && v.unknownTokens.length > 0 && (
           <Notice tone="amber">
-            Unrecognized token{v.unknownTokens.length > 1 ? 's' : ''} (won&apos;t be filled in): {v.unknownTokens.map(t => `{{${t}}}`).join(', ')} — check the token reference below for the exact names.
+            {t('unknownTokens', { count: v.unknownTokens.length, tokens: v.unknownTokens.map(tok => `{{${tok}}}`).join(', ') })}
           </Notice>
         )}
         {v && v.hasLineItemsRegion && v.missingRequiredTokens.length === 0 && v.unknownTokens.length === 0 && (
-          <Notice tone="teal">Looks good — every required token and the line-items region were found.</Notice>
+          <Notice tone="teal">{t('looksGood')}</Notice>
         )}
 
         <div className="flex flex-col gap-2 mb-4">
@@ -174,11 +176,11 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
             disabled={phase === 'previewing'}
             className="h-11 rounded-xl border border-border text-sm font-medium text-on-surface hover:bg-surface transition disabled:opacity-60"
           >
-            {phase === 'previewing' ? 'Rendering preview…' : previewUrl ? 'Re-render preview PDF' : 'Preview with sample data'}
+            {phase === 'previewing' ? t('renderingPreview') : previewUrl ? t('reRenderPreview') : t('previewWithSampleData')}
           </button>
 
           {previewUrl && (
-            <iframe src={previewUrl} className="w-full h-[420px] rounded-xl border border-border" title="Template preview" />
+            <iframe src={previewUrl} className="w-full h-[420px] rounded-xl border border-border" title={t('previewIframeTitle')} />
           )}
         </div>
 
@@ -190,7 +192,7 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
           className="w-full h-12 rounded-xl text-white font-semibold text-sm transition disabled:opacity-60"
           style={{ backgroundColor: accent }}
         >
-          {phase === 'saving' ? 'Saving…' : 'Use this template for my quotes'}
+          {phase === 'saving' ? t('saving') : t('useThisTemplate')}
         </button>
       </section>
     )
@@ -200,44 +202,44 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
   return (
     <section className="bg-white rounded-2xl border border-border p-5">
       <h2 className="text-sm font-bold mb-1" style={{ color: accent }}>
-        {hasExistingTemplate ? 'Replace your quote template' : 'Quote template'}
+        {hasExistingTemplate ? t('replaceTemplateTitle') : t('quoteTemplateTitle')}
       </h2>
       <p className="text-xs text-muted mb-3">
-        Upload a fully-designed HTML file (e.g. from an AI design tool) and every quote will be rendered from it —
-        pixel for pixel, as a real PDF. {hasExistingTemplate && 'Uploading a new file replaces the one you have now, but only once you save it.'}
+        {t('uploadDescription')} {hasExistingTemplate && t('replaceNote')}
       </p>
 
       <button onClick={() => setShowGuide(s => !s)} className="text-xs font-medium underline mb-4" style={{ color: accent }}>
-        {showGuide ? 'Hide token reference' : 'How do I build a template?'}
+        {showGuide ? t('hideTokenReference') : t('howToBuildTemplate')}
       </button>
 
       {showGuide && (
         <div className="bg-surface rounded-xl px-3.5 py-3 mb-4 text-xs text-on-surface leading-relaxed">
           <p className="mb-2">
-            Write plain HTML + CSS (inline &lt;style&gt; is fine). Anywhere you want real data, drop in one of these —
-            we replace them before rendering:
+            {t('guideIntro')}
           </p>
           <p className="font-mono text-[11px] mb-2 break-words">
             {'{{business_logo}} {{business_name}} {{business_address}} {{business_email}} {{business_phone}} {{business_website}} {{business_kvk}} {{business_btw}} {{business_iban}} {{customer_name}} {{customer_address}} {{customer_email}} {{customer_phone}} {{quote_number}} {{quote_date}} {{cover_note}} {{scope_text}} {{subtotal}} {{vat_percent}} {{vat_amount}} {{total}} {{terms_text}} {{footer_text}}'}
           </p>
           <p className="mb-2">
-            For the line items table, wrap ONE row in HTML comments — it repeats once per item:
+            {t('guideLineItemsIntro')}
           </p>
           <p className="font-mono text-[11px] mb-2 break-words">
             {'<!-- LINE_ITEMS_START --> <tr><td>{{item_label}}</td><td>{{item_quantity}}</td><td>{{item_unit_price}}</td><td>{{item_total}}</td></tr> <!-- LINE_ITEMS_END -->'}
           </p>
           <p className="mb-2">
-            <strong>Required content order:</strong> put {'{{cover_note}}'} right after the header/addressee block, then
-            the line-items table and totals, then {'{{scope_text}}'} ("Scope of work") after the totals. Any terms,
-            annexes, and signature blocks stay after that, unchanged. Every PDF is generated in this order.
+            <strong>{t('guideOrderTitle')}</strong> {t('guideOrderBody', { coverNoteToken: '{{cover_note}}', scopeTextToken: '{{scope_text}}' })}
           </p>
           <p className="mb-2">
-            {'{{cover_note}}'} and {'{{scope_text}}'} are AI-written prose, not one line — each already renders as its
-            own HTML paragraph(s), so place them directly (don&apos;t wrap them in your own {'<p>'} tag). They pick up
-            whatever font, size and color the container you put them in already uses — no separate styling needed.
+            {t('guideParagraphBody', { coverNoteToken: '{{cover_note}}', scopeTextToken: '{{scope_text}}' })}
+          </p>
+          <p className="mb-2">
+            <strong>{t('guideLabelTokensTitle')}</strong> {t('guideLabelTokensBody')}
+          </p>
+          <p className="font-mono text-[11px] mb-2 break-words">
+            {'{{lbl_quote}} {{lbl_quote_for}} {{lbl_a_note_from}} {{lbl_dear}} {{lbl_client}} {{lbl_from}} {{lbl_details}} {{lbl_quote_number}} {{lbl_date}} {{lbl_description}} {{lbl_quantity}} {{lbl_rate}} {{lbl_amount}} {{lbl_subtotal}} {{lbl_vat}} {{lbl_total}} {{lbl_scope_of_work}} {{lbl_terms_and_conditions}} {{lbl_for_approval_contractor}} {{lbl_for_approval_client}} {{lbl_signature_and_date}} {{lbl_initials}} {{lbl_page}} {{lbl_of}}'}
           </p>
           <a href="/example-quote-template.html" download className="underline font-medium" style={{ color: accent }}>
-            Download a complete working example
+            {t('downloadExample')}
           </a>
         </div>
       )}
@@ -250,7 +252,7 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
         className="h-11 px-5 inline-flex items-center justify-center rounded-xl text-white font-semibold text-sm cursor-pointer transition"
         style={{ backgroundColor: accent, opacity: phase === 'checking' ? 0.6 : 1, pointerEvents: phase === 'checking' ? 'none' : 'auto' }}
       >
-        {phase === 'checking' ? 'Reading your template…' : 'Choose an .html file'}
+        {phase === 'checking' ? t('readingTemplate') : t('chooseHtmlFile')}
       </label>
     </section>
   )

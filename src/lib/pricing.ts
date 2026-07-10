@@ -34,14 +34,6 @@ export type ItemType = 'labour' | 'material' | 'fixed'
  */
 export type RecurringRateType = 'day_rate' | 'hourly' | 'fixed'
 
-/** Plain-text labels for the three recurring rate types — shared by the
- * intake UI, the quote detail page, and the DOCX export. */
-export const RECURRING_RATE_LABELS: Record<RecurringRateType, string> = {
-  day_rate: 'Daily rate',
-  hourly:   'Hourly rate',
-  fixed:    'Fixed',
-}
-
 /**
  * One line in a job, as entered by the contractor.
  * Mirrors the LineItem shape stored in jobs.line_items (JSONB).
@@ -367,39 +359,12 @@ export function effectiveHourlyRate(dayRate: number, hoursPerDay: number): numbe
   return Math.round((dayRate / hoursPerDay) * 100) / 100
 }
 
-/**
- * Display text for a recurring line's quantity/rate columns — used by the
- * quote intake UI, the quote detail page, the DOCX export, and the PDF
- * line-items region. Formatting only; all money math already happened in
- * calculateProposal above.
- */
-export function recurringRateItemText(
-  rateType: RecurringRateType,
-  quantity: number,
-  unitCost: number,
-): { quantityText: string; rateText: string } {
-  switch (rateType) {
-    case 'day_rate': {
-      const perHour = effectiveHourlyRate(unitCost, quantity)
-      return {
-        quantityText: quantity > 0 ? `${quantity} hr${quantity === 1 ? '' : 's'}/day` : 'Per day',
-        rateText: perHour != null
-          ? `${formatEuro(unitCost)}/day (${formatEuro(perHour)}/hr)`
-          : `${formatEuro(unitCost)}/day`,
-      }
-    }
-    case 'hourly':
-      return {
-        quantityText: `${quantity} hour${quantity === 1 ? '' : 's'}`,
-        rateText: `${formatEuro(unitCost)}/hr`,
-      }
-    case 'fixed':
-      return {
-        quantityText: 'Per occurrence',
-        rateText: formatEuro(unitCost),
-      }
-  }
-}
+// Display text for a recurring line's quantity/rate columns (e.g. "€
+// 255,00/day (€ 51,00/hr)") now lives in src/lib/pdf/pdfLabels.ts —
+// bilingual, since it's shown to end users (quote intake UI in the
+// contractor's app language, PDFs/DOCX/public page in the quote's own
+// language). This file stays language-agnostic; formatEuro/effectiveHourlyRate
+// above are the pure-math pieces that file builds on.
 
 // ─── Private helpers ─────────────────────────────────────────────────────────
 

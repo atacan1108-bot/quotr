@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ForgotPasswordPage() {
   const supabase = createClient()
+  const t = useTranslations('auth.forgotPassword')
   const [email,   setEmail]   = useState('')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
@@ -26,7 +28,7 @@ export default function ForgotPasswordPage() {
       // else (including "no account with that email") stays the same generic
       // confirmation below, so this form never reveals whether an email is registered.
       if (error.message.toLowerCase().includes('rate limit')) {
-        setError('Te veel pogingen — probeer het over een paar minuten opnieuw.')
+        setError(t('rateLimited'))
         return
       }
     }
@@ -42,13 +44,12 @@ export default function ForgotPasswordPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
             </svg>
           </div>
-          <h1 className="text-xl font-semibold text-on-surface mb-2">Check je inbox</h1>
+          <h1 className="text-xl font-semibold text-on-surface mb-2">{t('checkInboxTitle')}</h1>
           <p className="text-sm text-muted mb-6">
-            Als er een account bestaat voor <strong>{email}</strong>, hebben we een e-mail gestuurd met een link
-            om je wachtwoord opnieuw in te stellen.
+            {t.rich('checkInboxBody', { email, b: chunks => <strong>{chunks}</strong> })}
           </p>
           <Link href="/login" className="inline-flex h-12 px-6 items-center rounded-xl bg-teal-500 text-white font-semibold text-sm hover:bg-teal-700 transition">
-            Naar inloggen
+            {t('toLogin')}
           </Link>
         </div>
       </div>
@@ -66,13 +67,13 @@ export default function ForgotPasswordPage() {
           <span className="ml-3 text-2xl font-semibold text-on-surface tracking-tight">Quotr</span>
         </div>
 
-        <h1 className="text-xl font-semibold text-on-surface mb-1">Wachtwoord vergeten</h1>
-        <p className="text-sm text-muted mb-8">Vul je e-mailadres in en we sturen je een link om een nieuw wachtwoord in te stellen.</p>
+        <h1 className="text-xl font-semibold text-on-surface mb-1">{t('title')}</h1>
+        <p className="text-sm text-muted mb-8">{t('subtitle')}</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label className="block text-sm font-medium text-on-surface mb-1.5" htmlFor="email">
-              E-mailadres
+              {t('email')}
             </label>
             <input
               id="email"
@@ -86,7 +87,7 @@ export default function ForgotPasswordPage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               className="w-full h-12 rounded-xl border border-border bg-white px-4 text-sm text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
-              placeholder="jij@bedrijf.nl"
+              placeholder={t('emailPlaceholder')}
             />
           </div>
 
@@ -99,13 +100,13 @@ export default function ForgotPasswordPage() {
             disabled={loading}
             className="h-12 w-full rounded-xl bg-teal-500 text-white font-semibold text-sm hover:bg-teal-700 active:bg-teal-700 transition disabled:opacity-60 mt-2"
           >
-            {loading ? 'Versturen…' : 'Verstuur resetlink'}
+            {loading ? t('submitting') : t('submit')}
           </button>
         </form>
 
         <p className="text-center text-sm text-muted mt-6">
           <Link href="/login" className="text-teal-500 font-medium hover:text-teal-700">
-            Terug naar inloggen
+            {t('backToLogin')}
           </Link>
         </p>
 

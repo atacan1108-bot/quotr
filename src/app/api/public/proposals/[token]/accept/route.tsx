@@ -16,6 +16,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getPublicProposalByToken, type PublicQuoteView } from '@/lib/publicProposal'
 import { formatEuro } from '@/lib/pricing'
 import { SignedQuotePDF } from '@/app/quote/[token]/SignedQuotePDF'
+import { pdfLabels, emailAcceptedSubjectLabel, emailAcceptedIntroLabel } from '@/lib/pdf/pdfLabels'
+import { DEFAULT_LOCALE } from '@/i18n/config'
+import type { Locale } from '@/i18n/config'
 
 const MAX_SIGNATURE_LENGTH = 2_000_000 // generous cap for a small canvas PNG data URL
 
@@ -24,26 +27,29 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
+  // No quote loaded yet at this point, so there's no job.language to read —
+  // same fallback the public page itself uses for its own unknown-token case.
+  const lFallback = pdfLabels(DEFAULT_LOCALE)
   if (!token) {
-    return NextResponse.json({ error: 'This quote link isn\'t valid.' }, { status: 404 })
+    return NextResponse.json({ error: lFallback.linkNotValid }, { status: 404 })
   }
 
   let body: { signerName?: string; signatureDataUrl?: string | null }
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+    return NextResponse.json({ error: lFallback.invalidRequest }, { status: 400 })
   }
 
   const signerName = body.signerName?.trim().slice(0, 200) ?? ''
   if (!signerName) {
-    return NextResponse.json({ error: 'Please enter your name.' }, { status: 400 })
+    return NextResponse.json({ error: lFallback.nameRequired }, { status: 400 })
   }
 
   const signatureDataUrl: string | null = body.signatureDataUrl?.trim() || null
   if (signatureDataUrl) {
     if (signatureDataUrl.length > MAX_SIGNATURE_LENGTH || !signatureDataUrl.startsWith('data:image/')) {
-      return NextResponse.json({ error: 'That signature couldn\'t be read — please try again.' }, { status: 400 })
+      return NextResponse.json({ error: lFallback.signatureUnreadable }, { status: 400 })
     }
   }
 
@@ -52,13 +58,15 @@ export async function POST(
     quote = await getPublicProposalByToken(token)
   } catch (err) {
     console.error('accept: failed to load proposal', err)
-    return NextResponse.json({ error: 'Something went wrong — please try again.' }, { status: 500 })
+    return NextResponse.json({ error: lFallback.somethingWentWrong }, { status: 500 })
   }
   if (!quote) {
-    return NextResponse.json({ error: 'This quote link isn\'t valid.' }, { status: 404 })
+    return NextResponse.json({ error: lFallback.linkNotValid }, { status: 404 })
   }
 
-  const businessName = quote.business.name ?? 'The business'
+  const locale: Locale = quote.language
+  const l = pdfLabels(locale)
+  const businessName = quote.business.name ?? l.thisBusiness
 
   // Already accepted (either from an earlier click, or a concurrent one
   // that wins the race below) — respond the same way, no duplicate email.
@@ -66,10 +74,10 @@ export async function POST(
     return NextResponse.json({ ok: true, businessName, signedPdfUrl: quote.signedPdfUrl })
   }
   if (quote.status === 'declined') {
-    return NextResponse.json({ error: 'This quote is no longer available.' }, { status: 409 })
+    return NextResponse.json({ error: l.noLongerAvailable }, { status: 409 })
   }
   if (quote.status === 'expired') {
-    return NextResponse.json({ error: 'This quote has expired.' }, { status: 409 })
+    return NextResponse.json({ error: l.quoteExpiredShort }, { status: 409 })
   }
 
   const admin = createAdminClient()
@@ -96,7 +104,7 @@ export async function POST(
 
   if (updateError) {
     console.error('accept: failed to update proposal', updateError)
-    return NextResponse.json({ error: 'Something went wrong — please try again.' }, { status: 502 })
+    return NextResponse.json({ error: l.somethingWentWrong }, { status: 502 })
   }
 
   const wonRace = (updatedRows?.length ?? 0) > 0
@@ -176,13 +184,28 @@ async function notifyContractor(opts: {
   // address — falls back to their displayed business email if that lookup
   // fails for some reason.
   let toEmail = opts.businessEmail
+  // This email goes to the CONTRACTOR, so it follows THEIR app language
+  // (rate_cards.language) — independent of the quote's own language.
+  let contractorLocale: Locale = DEFAULT_LOCALE
   if (opts.ownerId) {
+    const admin = createAdminClient()
     try {
-      const admin = createAdminClient()
       const { data } = await admin.auth.admin.getUserById(opts.ownerId)
       toEmail = data.user?.email ?? toEmail
     } catch (err) {
       console.error('accept: could not look up contractor login email', err)
+    }
+    try {
+      const { data: rc } = await admin
+        .from('rate_cards')
+        .select('language')
+        .eq('owner_id', opts.ownerId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (rc?.language) contractorLocale = rc.language
+    } catch (err) {
+      console.error('accept: could not look up contractor language', err)
     }
   }
   if (!toEmail) {
@@ -190,15 +213,16 @@ async function notifyContractor(opts: {
     return
   }
 
+  const le = pdfLabels(contractorLocale)
   const resend = new Resend(apiKey)
   await resend.emails.send({
     from:    'Quotr <onboarding@resend.dev>',
     to:      toEmail,
-    subject: `${opts.clientName} accepted your quote — ${formatEuro(opts.total)}`,
+    subject: emailAcceptedSubjectLabel(contractorLocale, opts.clientName, formatEuro(opts.total)),
     html: `
-      <p><strong>${escapeHtml(opts.clientName)}</strong> just accepted and signed the quote for <strong>${escapeHtml(opts.jobTitle)}</strong>.</p>
-      <p>Total: <strong>${formatEuro(opts.total)}</strong></p>
-      ${opts.signedPdfUrl ? `<p><a href="${opts.signedPdfUrl}">Download the signed PDF</a></p>` : ''}
+      <p>${emailAcceptedIntroLabel(contractorLocale, escapeHtml(opts.clientName), escapeHtml(opts.jobTitle))}</p>
+      <p>${le.emailTotalLabel} <strong>${formatEuro(opts.total)}</strong></p>
+      ${opts.signedPdfUrl ? `<p><a href="${opts.signedPdfUrl}">${le.emailDownloadSignedPdf}</a></p>` : ''}
       <p>— ${escapeHtml(opts.businessName)}</p>
     `,
   })

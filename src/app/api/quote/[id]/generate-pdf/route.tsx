@@ -17,6 +17,7 @@
 import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { headers } from 'next/headers'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
 import { getQuoteExportData } from '@/lib/quoteData'
 import { ProposalPDF } from '@/app/quotes/[id]/ProposalPDF'
@@ -38,8 +39,10 @@ export async function POST(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const tErrors = await getTranslations('errors')
+  const tApi    = await getTranslations('generatePdfApi')
   if (!user) {
-    return NextResponse.json({ error: 'You need to be logged in.' }, { status: 401 })
+    return NextResponse.json({ error: tErrors('notLoggedIn') }, { status: 401 })
   }
 
   const headersList = await headers()
@@ -49,10 +52,10 @@ export async function POST(
 
   const data = await getQuoteExportData(id, baseUrl)
   if (!data) {
-    return NextResponse.json({ error: 'Quote not found.' }, { status: 404 })
+    return NextResponse.json({ error: tApi('quoteNotFound') }, { status: 404 })
   }
   if (!data.proposal) {
-    return NextResponse.json({ error: 'This quote doesn\'t have a saved proposal yet.' }, { status: 400 })
+    return NextResponse.json({ error: tApi('noProposalYet') }, { status: 400 })
   }
   // Captured once, up front — `data.proposal` gets reassigned below when
   // wording is auto-generated, which erases TypeScript's null-narrowing on
@@ -65,7 +68,7 @@ export async function POST(
   const lineItemCount = data.job.line_items.length
   if (lineItemCount === 0) {
     return NextResponse.json(
-      { error: 'Add at least one line item before generating a PDF.' },
+      { error: tApi('noLineItems') },
       { status: 400 },
     )
   }
@@ -75,7 +78,7 @@ export async function POST(
   // to fall back to, so refuse clearly instead of rendering the wrong thing.
   if (isRecurring && !data.rateCard.template_html) {
     return NextResponse.json(
-      { error: 'Recurring quotes need an HTML template uploaded in Settings — the built-in design only supports one-off quotes.' },
+      { error: tApi('recurringNeedsTemplate') },
       { status: 400 },
     )
   }
@@ -97,6 +100,7 @@ export async function POST(
         jobTitle:   data.job.title,
         clientName: data.job.clients?.name ?? null,
         quoteType:  data.job.quote_type,
+        language:   data.job.language,
         ...(isRecurring
           ? { recurringConfig: data.job.recurring_config }
           : { lineItems: data.job.line_items.map(i => ({ label: i.label, type: i.type, quantity: i.quantity })) }),
@@ -116,7 +120,7 @@ export async function POST(
       const message = err instanceof Error ? err.message : 'Unknown error'
       console.error('generate-pdf: could not auto-generate missing wording', { ...logCtx, error: message })
       return NextResponse.json(
-        { error: `Could not generate this quote's wording automatically (${message}). Click "Generate wording" on the quote page and try again.` },
+        { error: tApi('wordingAutoGenerateFailed', { message }) },
         { status: err instanceof WordingGenerationError ? err.status : 502 },
       )
     }
@@ -161,7 +165,7 @@ export async function POST(
       // loudly here instead of silently rendering the wrong thing.
       if (isRecurring) {
         return NextResponse.json(
-          { error: `Could not render your template: ${message}` },
+          { error: tApi('templateRenderFailed', { message }) },
           { status: 502 },
         )
       }
@@ -174,7 +178,7 @@ export async function POST(
       } catch (fallbackErr) {
         console.error('generate-pdf: fallback render also failed', { ...logCtx, error: fallbackErr })
         return NextResponse.json(
-          { error: `Your custom template failed (${message}), and the backup design also failed to render. Please try again.` },
+          { error: tApi('templateAndFallbackFailed', { message }) },
           { status: 502 },
         )
       }
@@ -186,7 +190,7 @@ export async function POST(
     } catch (err) {
       console.error('generate-pdf: built-in render failed', { ...logCtx, error: err })
       return NextResponse.json(
-        { error: `Could not build the PDF: ${err instanceof Error ? err.message : 'unknown rendering error'}` },
+        { error: tApi('builtInRenderFailed', { message: err instanceof Error ? err.message : 'unknown rendering error' }) },
         { status: 502 },
       )
     }
@@ -201,7 +205,7 @@ export async function POST(
   if (uploadError) {
     console.error('generate-pdf: upload to storage failed', { ...logCtx, error: uploadError })
     return NextResponse.json(
-      { error: `Could not upload the PDF to storage: ${uploadError.message}` },
+      { error: tApi('uploadFailed', { message: uploadError.message }) },
       { status: 502 },
     )
   }
@@ -217,7 +221,7 @@ export async function POST(
   if (updateError) {
     console.error('generate-pdf: saving pdf_url failed', { ...logCtx, error: updateError })
     return NextResponse.json(
-      { error: `The PDF was created but could not be saved to the quote: ${updateError.message}` },
+      { error: tApi('saveUrlFailed', { message: updateError.message }) },
       { status: 502 },
     )
   }

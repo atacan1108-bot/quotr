@@ -8,15 +8,13 @@ import {
   Document, Page, Text, View, StyleSheet,
 } from '@react-pdf/renderer'
 import type { QuoteExportData } from '@/lib/quoteData'
+import { pdfLabels, itemTypeLabel, vatLabel, generatedWithLabel } from '@/lib/pdf/pdfLabels'
+import { formatDate } from '@/lib/formatDate'
 
-// ─── Dutch euro formatter ────────────────────────────────────────────────────
+// Money formatting stays nl-NL style regardless of quote language.
 // Produces: € 1.234,56
 const euro = (n: number) =>
   new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n)
-
-function fmtDate(s: string) {
-  return new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(s))
-}
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -75,12 +73,11 @@ const s = StyleSheet.create({
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function QuotePDF({ data }: { data: QuoteExportData }) {
-  const { job, proposal, rateCard, breakdown, shareUrl } = data
+  const { job, rateCard, breakdown, shareUrl } = data
   const client = job.clients
-
-  const TYPE_LABEL: Record<string, string> = {
-    labour: 'Arbeid', material: 'Materiaal', fixed: 'Vast',
-  }
+  // Customer-facing document — follows the QUOTE's own language.
+  const locale = job.language
+  const l = pdfLabels(locale)
 
   return (
     <Document
@@ -98,8 +95,8 @@ export function QuotePDF({ data }: { data: QuoteExportData }) {
             {rateCard.business_email   && <Text style={s.brandSub}>{rateCard.business_email}</Text>}
           </View>
           <View style={s.headerRight}>
-            <Text style={s.headerLabel}>Offerte</Text>
-            <Text style={s.headerVal}>{fmtDate(job.created_at)}</Text>
+            <Text style={s.headerLabel}>{l.quote}</Text>
+            <Text style={s.headerVal}>{formatDate(job.created_at, locale)}</Text>
           </View>
         </View>
 
@@ -108,7 +105,7 @@ export function QuotePDF({ data }: { data: QuoteExportData }) {
         {/* ── Client + job title ─────────────────────────────── */}
         <View style={s.twoCol}>
           <View style={{ flex: 1 }}>
-            <Text style={s.colLabel}>Klant</Text>
+            <Text style={s.colLabel}>{l.client}</Text>
             {client ? (
               <>
                 <Text style={s.colValBold}>{client.name}</Text>
@@ -121,20 +118,20 @@ export function QuotePDF({ data }: { data: QuoteExportData }) {
             )}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.colLabel}>Werkzaamheden</Text>
+            <Text style={s.colLabel}>{l.workDescription}</Text>
             <Text style={s.colValBold}>{job.title}</Text>
           </View>
         </View>
 
         {/* ── Line items table ────────────────────────────────── */}
-        <Text style={s.sectionHead}>Regelposten</Text>
+        <Text style={s.sectionHead}>{l.lineItems}</Text>
 
         {/* Table header */}
         <View style={s.tableHeader}>
-          <Text style={[s.tableHeaderTxt, s.wDesc]}>Omschrijving</Text>
-          <Text style={[s.tableHeaderTxt, s.wType]}>Type</Text>
-          <Text style={[s.tableHeaderTxt, s.wQty, { textAlign: 'right' }]}>Aantal</Text>
-          <Text style={[s.tableHeaderTxt, s.wAmount]}>Bedrag</Text>
+          <Text style={[s.tableHeaderTxt, s.wDesc]}>{l.description}</Text>
+          <Text style={[s.tableHeaderTxt, s.wType]}>{l.type}</Text>
+          <Text style={[s.tableHeaderTxt, s.wQty, { textAlign: 'right' }]}>{l.quantity}</Text>
+          <Text style={[s.tableHeaderTxt, s.wAmount]}>{l.amount}</Text>
         </View>
 
         {/* Table rows — all amounts from pricing engine */}
@@ -144,13 +141,13 @@ export function QuotePDF({ data }: { data: QuoteExportData }) {
               <Text style={s.cell}>{item.label}</Text>
               {item.type === 'material' && item.markup_amount > 0 && (
                 <Text style={s.cellMuted}>
-                  {euro(item.base_cost)} + {rateCard.material_markup_percent}% markup
+                  {euro(item.base_cost)} + {rateCard.material_markup_percent}% {l.markupSuffix}
                 </Text>
               )}
             </View>
-            <Text style={[s.cell, s.wType]}>{TYPE_LABEL[item.type] ?? item.type}</Text>
+            <Text style={[s.cell, s.wType]}>{itemTypeLabel(locale, item.type)}</Text>
             <Text style={[s.cell, s.wQty]}>
-              {item.type === 'labour' ? `${item.quantity} u` : `${item.quantity} st`}
+              {item.type === 'labour' ? `${item.quantity} ${l.hourUnit}` : `${item.quantity} ${l.unitUnit}`}
             </Text>
             <Text style={[s.cellRight, s.wAmount]}>{euro(item.line_total)}</Text>
           </View>
@@ -160,33 +157,33 @@ export function QuotePDF({ data }: { data: QuoteExportData }) {
         <View style={s.totalsBlock}>
           {breakdown.labour_total   > 0 && (
             <View style={s.totRow}>
-              <Text style={s.totLabel}>Arbeid</Text>
+              <Text style={s.totLabel}>{l.itemTypeLabour}</Text>
               <Text style={s.totVal}>{euro(breakdown.labour_total)}</Text>
             </View>
           )}
           {breakdown.material_total > 0 && (
             <View style={s.totRow}>
-              <Text style={s.totLabel}>Materiaal</Text>
+              <Text style={s.totLabel}>{l.itemTypeMaterial}</Text>
               <Text style={s.totVal}>{euro(breakdown.material_total)}</Text>
             </View>
           )}
           {breakdown.fixed_total    > 0 && (
             <View style={s.totRow}>
-              <Text style={s.totLabel}>Vast</Text>
+              <Text style={s.totLabel}>{l.itemTypeFixed}</Text>
               <Text style={s.totVal}>{euro(breakdown.fixed_total)}</Text>
             </View>
           )}
           <View style={s.totRuleSmall} />
           <View style={s.totRow}>
-            <Text style={s.totLabel}>Subtotaal (excl. BTW)</Text>
+            <Text style={s.totLabel}>{l.subtotalExclVat}</Text>
             <Text style={s.totVal}>{euro(breakdown.subtotal)}</Text>
           </View>
           <View style={s.totRow}>
-            <Text style={s.totLabel}>BTW {breakdown.vat_percent}%</Text>
+            <Text style={s.totLabel}>{vatLabel(locale, breakdown.vat_percent)}</Text>
             <Text style={s.totVal}>{euro(breakdown.vat_amount)}</Text>
           </View>
           <View style={s.grandRow}>
-            <Text style={s.grandLabel}>Totaal incl. BTW</Text>
+            <Text style={s.grandLabel}>{l.totalInclVat}</Text>
             <Text style={s.grandVal}>{euro(breakdown.total)}</Text>
           </View>
         </View>
@@ -196,13 +193,13 @@ export function QuotePDF({ data }: { data: QuoteExportData }) {
           {shareUrl ? (
             <>
               <Text style={s.footerTxt}>
-                Bekijk en accepteer deze offerte online:
+                {l.viewAndAcceptOnline}
               </Text>
               <Text style={s.shareUrl}>{shareUrl}</Text>
             </>
           ) : null}
           <Text style={[s.footerTxt, { marginTop: shareUrl ? 8 : 0 }]}>
-            Gegenereerd met Quotr · Alle prijzen in euro (€) · BTW {breakdown.vat_percent}%
+            {generatedWithLabel(locale, breakdown.vat_percent)}
           </Text>
         </View>
 

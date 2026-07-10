@@ -9,16 +9,21 @@
 
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer'
 import type { QuoteExportData } from '@/lib/quoteData'
-import { euro, fmtDate, createPdfStyles, DEFAULT_PRIMARY, TYPE_META } from '@/lib/pdf/shared'
+import { euro, createPdfStyles, DEFAULT_PRIMARY } from '@/lib/pdf/shared'
+import { pdfLabels, typeMeta, vatLabel } from '@/lib/pdf/pdfLabels'
+import { formatDate } from '@/lib/formatDate'
 
 export function ProposalPDF({ data }: { data: QuoteExportData }) {
   const { job, proposal, rateCard, breakdown } = data
   const client = job.clients
   const s = createPdfStyles(rateCard.branding?.primaryColor || DEFAULT_PRIMARY)
+  // Customer-facing document — follows the QUOTE's own language.
+  const locale = job.language
+  const l = pdfLabels(locale)
 
   return (
     <Document
-      title={`Quote for ${client?.name ?? job.title}`}
+      title={`${l.quoteFor} ${client?.name ?? job.title}`}
       author={rateCard.business_name ?? 'Quotr'}
       creator="Quotr"
     >
@@ -39,30 +44,30 @@ export function ProposalPDF({ data }: { data: QuoteExportData }) {
         <View style={s.headerRule} />
 
         {/* ── Quote for [client] + date ─────────────────────────── */}
-        <Text style={s.quoteTitle}>Quote for {client?.name ?? 'you'}</Text>
-        <Text style={s.quoteDate}>{fmtDate(new Date())}</Text>
+        <Text style={s.quoteTitle}>{l.quoteFor} {client?.name ?? ''}</Text>
+        <Text style={s.quoteDate}>{formatDate(new Date(), locale)}</Text>
 
         {/* ── Cover note — first, right after the header/addressee block ── */}
         {proposal?.cover_note && (
           <View style={s.panel} wrap={false}>
-            <Text style={s.panelLabel}>A note from {rateCard.business_name ?? 'us'}</Text>
+            <Text style={s.panelLabel}>{l.aNoteFrom} {rateCard.business_name ?? ''}</Text>
             <Text style={s.panelText}>{proposal.cover_note}</Text>
           </View>
         )}
 
         {/* ── Itemized table — every number below comes straight
                from the pricing engine's breakdown, never recomputed ── */}
-        <Text style={s.sectionLabel}>Quote breakdown</Text>
+        <Text style={s.sectionLabel}>{l.quoteBreakdown}</Text>
         <View style={s.tableHeadRow}>
-          <Text style={[s.tableHeadTxt, s.wDesc]}>Description</Text>
-          <Text style={[s.tableHeadTxt, s.wAmount]}>Amount</Text>
+          <Text style={[s.tableHeadTxt, s.wDesc]}>{l.description}</Text>
+          <Text style={[s.tableHeadTxt, s.wAmount]}>{l.amount}</Text>
         </View>
 
         {breakdown.items.map((item, i) => (
           <View key={i} style={i % 2 === 0 ? s.row : s.rowAlt}>
             <View style={s.wDesc}>
               <Text style={s.itemLabel}>{item.label}</Text>
-              <Text style={s.itemMeta}>{(TYPE_META[item.type] ?? (() => ''))(item.quantity)}</Text>
+              <Text style={s.itemMeta}>{typeMeta(locale, item.type, item.quantity)}</Text>
             </View>
             <Text style={[s.amount, s.wAmount]}>{euro(item.line_total)}</Text>
           </View>
@@ -71,15 +76,15 @@ export function ProposalPDF({ data }: { data: QuoteExportData }) {
         {/* ── Totals ──────────────────────────────────────────────── */}
         <View style={s.totalsBlock}>
           <View style={s.totRow}>
-            <Text style={s.totLabel}>Subtotal</Text>
+            <Text style={s.totLabel}>{l.subtotal}</Text>
             <Text style={s.totVal}>{euro(breakdown.subtotal)}</Text>
           </View>
           <View style={s.totRow}>
-            <Text style={s.totLabel}>VAT ({breakdown.vat_percent}%)</Text>
+            <Text style={s.totLabel}>{vatLabel(locale, breakdown.vat_percent)}</Text>
             <Text style={s.totVal}>{euro(breakdown.vat_amount)}</Text>
           </View>
           <View style={s.grandRow}>
-            <Text style={s.grandLabel}>Total</Text>
+            <Text style={s.grandLabel}>{l.total}</Text>
             <Text style={s.grandVal}>{euro(breakdown.total)}</Text>
           </View>
         </View>
@@ -87,7 +92,7 @@ export function ProposalPDF({ data }: { data: QuoteExportData }) {
         {/* ── Scope of work — after the line items and totals ──────── */}
         {proposal?.scope_text && (
           <View style={s.panel} wrap={false}>
-            <Text style={s.panelLabel}>Scope of work</Text>
+            <Text style={s.panelLabel}>{l.scopeOfWork}</Text>
             <Text style={s.panelText}>{proposal.scope_text}</Text>
           </View>
         )}

@@ -68,7 +68,7 @@
 
   <div class="quote-meta">
     <div>
-      <h1>Quote for {{customer_name}}</h1>
+      <h1>{{lbl_quote_for}} {{customer_name}}</h1>
       <p class="to">{{customer_address}}</p>
     </div>
     <div class="right">
@@ -78,13 +78,13 @@
   </div>
 
   <div class="panel">
-    <p class="label">A note from {{business_name}}</p>
+    <p class="label">{{lbl_a_note_from}} {{business_name}}</p>
     {{cover_note}}
   </div>
 
   <table class="items">
     <thead>
-      <tr><th>Description</th><th class="amount">Amount</th></tr>
+      <tr><th>{{lbl_description}}</th><th class="amount">{{lbl_amount}}</th></tr>
     </thead>
     <tbody>
       <!-- LINE_ITEMS_START -->
@@ -97,13 +97,13 @@
   </table>
 
   <div class="totals">
-    <div class="row"><span>Subtotal</span><span>{{subtotal}}</span></div>
-    <div class="row"><span>VAT ({{vat_percent}}%)</span><span>{{vat_amount}}</span></div>
-    <div class="grand"><span>Total</span><span>{{total}}</span></div>
+    <div class="row"><span>{{lbl_subtotal}}</span><span>{{subtotal}}</span></div>
+    <div class="row"><span>{{lbl_vat}}</span><span>{{vat_amount}}</span></div>
+    <div class="grand"><span>{{lbl_total}}</span><span>{{total}}</span></div>
   </div>
 
   <div class="panel">
-    <p class="label">Scope of work</p>
+    <p class="label">{{lbl_scope_of_work}}</p>
     {{scope_text}}
   </div>
 

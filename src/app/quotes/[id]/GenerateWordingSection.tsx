@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 import type { Job, QuoteType, RecurringConfig } from '@/lib/types'
 
 interface Props {
   proposalId: string
+  jobId: string
   jobTitle: string
   clientName: string | null
   quoteType: QuoteType
@@ -18,9 +20,11 @@ interface Props {
 type Status = 'idle' | 'generating' | 'ready' | 'error'
 
 export default function GenerateWordingSection({
-  proposalId, jobTitle, clientName, quoteType, lineItems, recurringConfig, initialScopeText, initialCoverNote,
+  proposalId, jobId, jobTitle, clientName, quoteType, lineItems, recurringConfig, initialScopeText, initialCoverNote,
 }: Props) {
   const supabase = createClient()
+  const t = useTranslations('generateWordingSection')
+  const tErrors = useTranslations('errors')
 
   const hasExisting = Boolean(initialScopeText || initialCoverNote)
   const [status, setStatus]         = useState<Status>(hasExisting ? 'ready' : 'idle')
@@ -38,6 +42,7 @@ export default function GenerateWordingSection({
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          jobId,
           jobTitle,
           clientName,
           quoteType,
@@ -51,15 +56,15 @@ export default function GenerateWordingSection({
         data = await res.json()
       } catch {
         // Non-JSON response (e.g. redirected to the login page mid-session)
-        throw new Error('Your session may have expired — please refresh the page and try again.')
+        throw new Error(t('sessionExpired'))
       }
-      if (!res.ok || !data) throw new Error(data?.error || 'Something went wrong — please try again.')
+      if (!res.ok || !data) throw new Error(data?.error || tErrors('somethingWentWrong'))
 
       setScopeText(data.scope_text ?? '')
       setCoverNote(data.cover_note ?? '')
       setStatus('ready')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong — please try again.')
+      setError(err instanceof Error ? err.message : tErrors('somethingWentWrong'))
       setStatus('error')
     }
   }
@@ -75,7 +80,7 @@ export default function GenerateWordingSection({
       setJustSaved(true)
       setTimeout(() => setJustSaved(false), 2000)
     } catch {
-      setError('Could not save your edits — please try again.')
+      setError(t('saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -84,13 +89,13 @@ export default function GenerateWordingSection({
   return (
     <div className="bg-white rounded-2xl border border-border p-5 mb-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-semibold text-muted uppercase tracking-wide">AI wording</p>
+        <p className="text-xs font-semibold text-muted uppercase tracking-wide">{t('title')}</p>
         {(status === 'ready') && (
           <button
             onClick={generate}
             className="text-xs font-medium text-teal-500 hover:text-teal-700 transition"
           >
-            Regenerate
+            {t('regenerate')}
           </button>
         )}
       </div>
@@ -98,13 +103,13 @@ export default function GenerateWordingSection({
       {status === 'idle' && (
         <div className="text-center py-4">
           <p className="text-sm text-muted mb-4">
-            Let AI draft a scope description and a cover note for this quote — you can edit before sending.
+            {t('idlePrompt')}
           </p>
           <button
             onClick={generate}
             className="h-11 px-5 rounded-xl bg-teal-500 text-white font-semibold text-sm hover:bg-teal-700 active:scale-95 transition"
           >
-            Generate wording
+            {t('generateButton')}
           </button>
         </div>
       )}
@@ -115,7 +120,7 @@ export default function GenerateWordingSection({
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <p className="text-sm text-muted">Writing your wording…</p>
+          <p className="text-sm text-muted">{t('writingStatus')}</p>
         </div>
       )}
 
@@ -131,7 +136,7 @@ export default function GenerateWordingSection({
             onClick={generate}
             className="h-11 px-5 rounded-xl bg-teal-500 text-white font-semibold text-sm hover:bg-teal-700 active:scale-95 transition"
           >
-            Try again
+            {t('generateButton')}
           </button>
         </div>
       )}
@@ -140,7 +145,7 @@ export default function GenerateWordingSection({
         <div className="flex flex-col gap-4">
           <div>
             <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
-              Scope of work
+              {t('scopeOfWork')}
             </label>
             <textarea
               value={scopeText}
@@ -151,7 +156,7 @@ export default function GenerateWordingSection({
           </div>
           <div>
             <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
-              Cover note to client
+              {t('coverNote')}
             </label>
             <textarea
               value={coverNote}
@@ -181,16 +186,16 @@ export default function GenerateWordingSection({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Saving…
+                {t('saving')}
               </>
             ) : justSaved ? (
               <>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                 </svg>
-                Saved
+                {t('saved')}
               </>
-            ) : 'Save wording'}
+            ) : t('saveWording')}
           </button>
         </div>
       )}
