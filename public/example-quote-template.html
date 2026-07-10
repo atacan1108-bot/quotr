@@ -79,12 +79,7 @@
 
   <div class="panel">
     <p class="label">A note from {{business_name}}</p>
-    <p>{{cover_note}}</p>
-  </div>
-
-  <div class="panel">
-    <p class="label">Scope of work</p>
-    <p>{{scope_text}}</p>
+    {{cover_note}}
   </div>
 
   <table class="items">
@@ -105,6 +100,11 @@
     <div class="row"><span>Subtotal</span><span>{{subtotal}}</span></div>
     <div class="row"><span>VAT ({{vat_percent}}%)</span><span>{{vat_amount}}</span></div>
     <div class="grand"><span>Total</span><span>{{total}}</span></div>
+  </div>
+
+  <div class="panel">
+    <p class="label">Scope of work</p>
+    {{scope_text}}
   </div>
 
   <div class="footer">

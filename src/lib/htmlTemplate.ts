@@ -134,10 +134,32 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
+/**
+ * cover_note and scope_text are free-form AI-written prose, not a single
+ * line — rendered as real <p> paragraphs (a blank line starts a new
+ * paragraph; a single newline becomes <br>) instead of one run-on escaped
+ * string. Deliberately sets no font/color/size of its own: it inherits
+ * whatever typography the surrounding template container already
+ * declares, so it reads as typeset with the document rather than pasted
+ * in. break-inside/page-break-inside keep a short paragraph from being
+ * split across a PDF page boundary.
+ */
+const PARAGRAPH_TOKENS = new Set(['cover_note', 'scope_text'])
+
+function escapeHtmlParagraphs(value: string): string {
+  const paragraphs = value.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+  return paragraphs
+    .map((p, i) => {
+      const margin = i < paragraphs.length - 1 ? 'margin:0 0 0.85em;' : 'margin:0;'
+      return `<p style="${margin}break-inside:avoid;page-break-inside:avoid;">${escapeHtml(p).replace(/\n/g, '<br>')}</p>`
+    })
+    .join('')
+}
+
 function replaceTokens(html: string, values: Record<string, string>): string {
   return html.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, token: string) => {
     if (!(token in values)) return match // unknown token — leave visible rather than silently vanish
-    return escapeHtml(values[token])
+    return PARAGRAPH_TOKENS.has(token) ? escapeHtmlParagraphs(values[token]) : escapeHtml(values[token])
   })
 }
 

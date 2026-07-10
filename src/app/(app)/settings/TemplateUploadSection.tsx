@@ -226,6 +226,16 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
           <p className="font-mono text-[11px] mb-2 break-words">
             {'<!-- LINE_ITEMS_START --> <tr><td>{{item_label}}</td><td>{{item_quantity}}</td><td>{{item_unit_price}}</td><td>{{item_total}}</td></tr> <!-- LINE_ITEMS_END -->'}
           </p>
+          <p className="mb-2">
+            <strong>Required content order:</strong> put {'{{cover_note}}'} right after the header/addressee block, then
+            the line-items table and totals, then {'{{scope_text}}'} ("Scope of work") after the totals. Any terms,
+            annexes, and signature blocks stay after that, unchanged. Every PDF is generated in this order.
+          </p>
+          <p className="mb-2">
+            {'{{cover_note}}'} and {'{{scope_text}}'} are AI-written prose, not one line — each already renders as its
+            own HTML paragraph(s), so place them directly (don&apos;t wrap them in your own {'<p>'} tag). They pick up
+            whatever font, size and color the container you put them in already uses — no separate styling needed.
+          </p>
           <a href="/example-quote-template.html" download className="underline font-medium" style={{ color: accent }}>
             Download a complete working example
           </a>

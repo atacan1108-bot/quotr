@@ -1,94 +1,20 @@
 /**
- * Server-only route. Calls the Anthropic API to draft two blocks of prose for
- * a quote: a scope-of-work description and a client-facing cover note.
- *
- * The Anthropic API key lives in ANTHROPIC_API_KEY (server env only — see
- * .env.local) and is never sent to the browser. This route is the only place
- * in the app that talks to Anthropic.
- *
- * The model is instructed never to output prices, totals, or VAT figures —
- * all money numbers come exclusively from src/lib/pricing.ts. As a second
- * line of defense (models can still slip), the response is scanned for
- * currency/percentage patterns before it's returned; if any are found the
- * request fails rather than risk showing an invented price to a contractor.
+ * Route handler for the manual "Generate wording" button on the quote page.
+ * The actual Anthropic call + price-leak guard lives in
+ * src/lib/generateWording.ts, shared with the auto-generate guard in
+ * /api/quote/[id]/generate-pdf.
  */
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
-
-const MODEL = 'claude-sonnet-5'
-
-const SYSTEM_PROMPT = `You are a copywriting assistant embedded in Quotr, an app contractors use to send price quotes to their clients. You write two short pieces of prose for each quote. You never see and must never invent prices — those are computed separately by the app's own pricing engine and inserted afterwards.
-
-Write in clear, professional but friendly business English suited to the Dutch contracting market — direct, warm, no filler, no hard sell.
-
-You will be given a job title, an optional client name, and either (a) a list of labour and material line items (with quantities but no cost data) for a one-off job, or (b) a recurring service contract's schedule (days/week, weeks/year, contract length, notice period, auto-renewal — no cost data). Produce exactly two pieces of text:
-
-1. scope_text — a concise scope-of-work description. Summarize the labour and materials involved in plain language a client can understand, as a short paragraph or a few sentences. This is not a legal contract clause — keep it readable.
-2. cover_note — a short, warm note addressed to the client by name (3-4 sentences), the kind of thing that would appear above the quote when it's sent. Thank them, briefly frame what the quote covers, and invite them to reach out with questions.
-
-CRITICAL — absolute rules, no exceptions:
-- Never write any prices, monetary amounts, currency symbols (€, $, £), percentages, VAT figures, discounts, or totals. All pricing is handled entirely outside of you.
-- Never estimate, guess, or imply a price range, even vaguely ("affordably priced", "a fraction of the cost", etc.).
-- You MAY mention quantities or durations that describe the work itself, since those describe scope, not cost (e.g. "installing 12 solar panels" or "8 hours of electrical work").
-- If a client name is not given, address them generically ("Hi there," or similar) rather than inventing a name.
-
-Respond with nothing but the two text blocks in the required JSON shape.`
-
-interface LineItemInput {
-  label: string
-  type: 'labour' | 'material' | 'fixed'
-  quantity: number
-}
-
-interface RecurringConfigInput {
-  days_per_week:        number
-  weeks_per_year:       number
-  contract_term_months: number
-  notice_period_months: number | null
-  auto_renewal:          boolean
-}
+import { generateWording, WordingGenerationError } from '@/lib/generateWording'
+import type { WordingLineItemInput, WordingRecurringConfigInput } from '@/lib/generateWording'
 
 interface RequestBody {
   jobTitle:        string
   clientName:      string | null
   quoteType?:      'one_off' | 'recurring'
-  lineItems?:      LineItemInput[]
-  recurringConfig?: RecurringConfigInput | null
-}
-
-interface WordingResult {
-  scope_text: string
-  cover_note: string
-}
-
-const RESPONSE_SCHEMA = {
-  type: 'object',
-  properties: {
-    scope_text: { type: 'string' },
-    cover_note: { type: 'string' },
-  },
-  required: ['scope_text', 'cover_note'],
-  additionalProperties: false,
-} as const
-
-// Defense-in-depth: reject any response that looks like it contains a price,
-// a percentage (VAT/markup), or a currency figure, even though the system
-// prompt already forbids it.
-const PRICE_LEAK_PATTERNS: RegExp[] = [
-  /[€$£¥]\s?\d/,
-  /\d[\d.,]*\s?(EUR|USD|GBP)\b/i,
-  /\bVAT\b[^.]{0,20}?\d/i,
-  /\d+(\.\d+)?\s?%/,
-]
-
-function containsPriceLeak(text: string): boolean {
-  return PRICE_LEAK_PATTERNS.some(pattern => pattern.test(text))
-}
-
-function itemLine(item: LineItemInput): string {
-  const qty = item.type === 'fixed' ? '' : ` — quantity: ${item.quantity}${item.type === 'labour' ? ' hours' : ''}`
-  return `- ${item.label} (${item.type}${qty})`
+  lineItems?:      WordingLineItemInput[]
+  recurringConfig?: WordingRecurringConfigInput | null
 }
 
 export async function POST(req: Request) {
@@ -98,14 +24,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'You need to be logged in.' }, { status: 401 })
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey || apiKey === 'PASTE_YOUR_ANTHROPIC_API_KEY_HERE') {
-    return NextResponse.json(
-      { error: 'AI wording isn\'t set up yet — add ANTHROPIC_API_KEY in .env.local.' },
-      { status: 500 },
-    )
-  }
-
   let body: RequestBody
   try {
     body = await req.json()
@@ -113,71 +31,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const jobTitle   = body.jobTitle?.trim()
-  const clientName = body.clientName?.trim() || null
-  const quoteType  = body.quoteType === 'recurring' ? 'recurring' : 'one_off'
-
-  if (!jobTitle) {
-    return NextResponse.json({ error: 'Missing job title.' }, { status: 400 })
-  }
-
-  let contextBlock: string
-  if (quoteType === 'recurring') {
-    const rc = body.recurringConfig
-    if (!rc || !rc.days_per_week || !rc.weeks_per_year || !rc.contract_term_months) {
-      return NextResponse.json({ error: 'Missing contract terms.' }, { status: 400 })
-    }
-    contextBlock = `This is a recurring service contract, not a one-off job.
-Schedule: ${rc.days_per_week} days per week, ${rc.weeks_per_year} weeks per year.
-Contract length: ${rc.contract_term_months} months${rc.notice_period_months ? `, with a ${rc.notice_period_months}-month notice period` : ''}.
-${rc.auto_renewal ? 'The contract automatically renews after the term.' : 'The contract ends at the end of the term unless renewed.'}`
-  } else {
-    const lineItems = Array.isArray(body.lineItems) ? body.lineItems : []
-    if (lineItems.length === 0) {
-      return NextResponse.json({ error: 'Missing line items.' }, { status: 400 })
-    }
-    contextBlock = `Line items:\n${lineItems.map(itemLine).join('\n')}`
-  }
-
-  const userPrompt = `Job title: ${jobTitle}
-Client name: ${clientName ?? '(not provided)'}
-
-${contextBlock}
-
-Write scope_text and cover_note as instructed.`
-
-  const client = new Anthropic({ apiKey })
-
-  let parsed: WordingResult
   try {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userPrompt }],
-      output_config: {
-        format: { type: 'json_schema', schema: RESPONSE_SCHEMA },
-      },
+    const result = await generateWording({
+      jobTitle:        body.jobTitle,
+      clientName:      body.clientName,
+      quoteType:       body.quoteType === 'recurring' ? 'recurring' : 'one_off',
+      lineItems:       body.lineItems,
+      recurringConfig: body.recurringConfig,
     })
-
-    const textBlock = response.content.find(block => block.type === 'text')
-    if (!textBlock || textBlock.type !== 'text') {
-      return NextResponse.json({ error: 'The AI didn\'t return any text — please try again.' }, { status: 502 })
-    }
-
-    parsed = JSON.parse(textBlock.text) as WordingResult
+    return NextResponse.json(result)
   } catch (err) {
-    console.error('generate-wording: Anthropic request failed', err)
-    return NextResponse.json({ error: 'Could not reach the AI service — please try again.' }, { status: 502 })
+    if (err instanceof WordingGenerationError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
+    console.error('generate-wording: unexpected failure', err)
+    return NextResponse.json({ error: 'Something went wrong — please try again.' }, { status: 500 })
   }
-
-  if (containsPriceLeak(parsed.scope_text) || containsPriceLeak(parsed.cover_note)) {
-    console.error('generate-wording: blocked a response containing a price-like pattern')
-    return NextResponse.json(
-      { error: 'The AI included a price, which isn\'t allowed here — please try again.' },
-      { status: 422 },
-    )
-  }
-
-  return NextResponse.json(parsed)
 }

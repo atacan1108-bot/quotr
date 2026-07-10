@@ -42,19 +42,11 @@ export function ProposalPDF({ data }: { data: QuoteExportData }) {
         <Text style={s.quoteTitle}>Quote for {client?.name ?? 'you'}</Text>
         <Text style={s.quoteDate}>{fmtDate(new Date())}</Text>
 
-        {/* ── Cover note ─────────────────────────────────────────── */}
+        {/* ── Cover note — first, right after the header/addressee block ── */}
         {proposal?.cover_note && (
-          <View style={s.panel}>
+          <View style={s.panel} wrap={false}>
             <Text style={s.panelLabel}>A note from {rateCard.business_name ?? 'us'}</Text>
             <Text style={s.panelText}>{proposal.cover_note}</Text>
-          </View>
-        )}
-
-        {/* ── Scope of work ──────────────────────────────────────── */}
-        {proposal?.scope_text && (
-          <View style={s.panel}>
-            <Text style={s.panelLabel}>Scope of work</Text>
-            <Text style={s.panelText}>{proposal.scope_text}</Text>
           </View>
         )}
 
@@ -91,6 +83,14 @@ export function ProposalPDF({ data }: { data: QuoteExportData }) {
             <Text style={s.grandVal}>{euro(breakdown.total)}</Text>
           </View>
         </View>
+
+        {/* ── Scope of work — after the line items and totals ──────── */}
+        {proposal?.scope_text && (
+          <View style={s.panel} wrap={false}>
+            <Text style={s.panelLabel}>Scope of work</Text>
+            <Text style={s.panelText}>{proposal.scope_text}</Text>
+          </View>
+        )}
 
         {/* ── Footer: short branded tagline + terms, small and subtle ── */}
         {(rateCard.branding?.footerText || rateCard.terms_text) && (

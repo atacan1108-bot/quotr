@@ -23,6 +23,7 @@ import { ProposalPDF } from '@/app/quotes/[id]/ProposalPDF'
 import { fillTemplate } from '@/lib/htmlTemplate'
 import { buildTemplateData } from '@/lib/pdf/buildTemplateData'
 import { renderHtmlToPdf } from '@/lib/pdf/renderHtmlPdf'
+import { generateWording, WordingGenerationError } from '@/lib/generateWording'
 
 // Headless-Chromium cold start + render can take longer than Next.js/Vercel's
 // default function timeout, especially on a cold serverless invocation —
@@ -53,6 +54,10 @@ export async function POST(
   if (!data.proposal) {
     return NextResponse.json({ error: 'This quote doesn\'t have a saved proposal yet.' }, { status: 400 })
   }
+  // Captured once, up front — `data.proposal` gets reassigned below when
+  // wording is auto-generated, which erases TypeScript's null-narrowing on
+  // the property for the rest of this function.
+  const proposalId = data.proposal.id
 
   // Guard: never render a PDF from zero line items — one-off and recurring
   // quotes share the exact same job.line_items source now.
@@ -78,6 +83,43 @@ export async function POST(
   const logCtx = {
     proposalId: data.proposal.id, jobId: id,
     hasTemplate: !!data.rateCard.template_html, quoteType: data.job.quote_type, lineItemCount,
+  }
+
+  // Guard: a PDF must never go out with a silently blank cover note or
+  // scope of work. "Generate wording" is a separate, skippable manual step
+  // on the quote page — if it was never run (or only ran halfway), generate
+  // and save the missing piece(s) now rather than rendering an incomplete
+  // document. If generation itself fails, fail the PDF request with a
+  // specific reason instead of producing one with a blank section.
+  if (!data.proposal.cover_note?.trim() || !data.proposal.scope_text?.trim()) {
+    try {
+      const wording = await generateWording({
+        jobTitle:   data.job.title,
+        clientName: data.job.clients?.name ?? null,
+        quoteType:  data.job.quote_type,
+        ...(isRecurring
+          ? { recurringConfig: data.job.recurring_config }
+          : { lineItems: data.job.line_items.map(i => ({ label: i.label, type: i.type, quantity: i.quantity })) }),
+      })
+
+      const { data: updatedProposal, error: wordingSaveError } = await supabase
+        .from('proposals')
+        .update({ cover_note: wording.cover_note, scope_text: wording.scope_text })
+        .eq('id', proposalId)
+        .select()
+        .single()
+      if (wordingSaveError) throw wordingSaveError
+
+      data.proposal = updatedProposal
+      console.log('generate-pdf: auto-generated missing wording', logCtx)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      console.error('generate-pdf: could not auto-generate missing wording', { ...logCtx, error: message })
+      return NextResponse.json(
+        { error: `Could not generate this quote's wording automatically (${message}). Click "Generate wording" on the quote page and try again.` },
+        { status: err instanceof WordingGenerationError ? err.status : 502 },
+      )
+    }
   }
 
   let buffer: Buffer
@@ -151,7 +193,7 @@ export async function POST(
   }
 
   // Stage (f): upload to Supabase Storage and save proposals.pdf_url.
-  const path = `${user.id}/${data.proposal.id}.pdf`
+  const path = `${user.id}/${proposalId}.pdf`
   const { error: uploadError } = await supabase.storage
     .from('proposals')
     .upload(path, buffer, { contentType: 'application/pdf', upsert: true })
@@ -170,7 +212,7 @@ export async function POST(
   const { error: updateError } = await supabase
     .from('proposals')
     .update({ pdf_url: pdfUrl })
-    .eq('id', data.proposal.id)
+    .eq('id', proposalId)
 
   if (updateError) {
     console.error('generate-pdf: saving pdf_url failed', { ...logCtx, error: updateError })
