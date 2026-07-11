@@ -52,6 +52,9 @@
   .totals .row { display: flex; justify-content: space-between; font-size: 12px; padding: 6px 0; }
   .totals .grand { display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; color: #0F766E; padding: 10px 0 0; border-top: 2px solid #0F766E; margin-top: 6px; }
 
+  .period-totals { margin-top: 4px; }
+  .period-totals .basis { font-size: 10px; color: #7A7A7D; text-align: right; margin: 4px 0 0; }
+
   .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #E7E5E0; font-size: 10px; color: #7A7A7D; line-height: 1.5; }
 </style>
 </head>
@@ -101,6 +104,17 @@
     <div class="row"><span>{{lbl_vat}}</span><span>{{vat_amount}}</span></div>
     <div class="grand"><span>{{lbl_total}}</span><span>{{total}}</span></div>
   </div>
+
+  <!-- RECURRING_START -->
+  <!-- Only rendered for recurring quotes — removed entirely (markers and
+       all) for one-off quotes, so it never shows up empty. Reuses the same
+       .totals .row styling as the block above it, just two lines. -->
+  <div class="totals period-totals">
+    <div class="row"><span>{{lbl_per_day}}</span><span>{{total_per_day}}</span></div>
+    <div class="row"><span>{{lbl_per_month}}</span><span>{{total_per_month}}</span></div>
+    <p class="basis">{{vat_basis_note}}</p>
+  </div>
+  <!-- RECURRING_END -->
 
   <div class="panel">
     <p class="label">{{lbl_scope_of_work}}</p>

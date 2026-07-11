@@ -72,6 +72,18 @@ export interface PdfLabels {
   page:                  string // "pagina" / "page"
   of:                    string // "van" / "of"
   dear:                  string // "Geachte" / "Dear" — salutation prefix before the client's name
+  // Recurring-quote PERIOD TOTALS block (custom templates only — the
+  // <!-- RECURRING_START/END --> region in htmlTemplate.ts). Column
+  // headings for the day/week/month/year/contract-term summary table.
+  periodTotalsTitle:     string // "Periodetotalen" / "Period totals"
+  columnPerDay:          string // "Per dag" / "Per day"
+  columnPerWeek:         string // "Per week" / "Per week"
+  columnPerMonth:        string // "Per maand" / "Per month"
+  columnPerYear:         string // "Per jaar" / "Per year"
+  columnTotalContractTerm: string // "Totaal over contractduur" / "Total over contract term"
+  contractBasisTemplate: string // "op basis van {days} dagen per week, {weeks} weken per jaar" — filled by contractBasisLabel()
+  vatBasisExcl:          string // "Bedragen excl. BTW" / "Amounts excl. VAT"
+  vatBasisIncl:          string // "Bedragen incl. BTW" / "Amounts incl. VAT"
   // Public share page (/quote/[token]) — this visitor has no logged-in
   // session, so there's no next-intl locale to read; these follow the
   // QUOTE's own language exclusively, same as the PDF.
@@ -181,6 +193,15 @@ const NL: PdfLabels = {
   page:                  'pagina',
   of:                    'van',
   dear:                  'Geachte',
+  periodTotalsTitle:     'Periodetotalen',
+  columnPerDay:          'Per dag',
+  columnPerWeek:         'Per week',
+  columnPerMonth:        'Per maand',
+  columnPerYear:         'Per jaar',
+  columnTotalContractTerm: 'Totaal over contractduur',
+  contractBasisTemplate: 'op basis van {days} dagen per week, {weeks} weken per jaar',
+  vatBasisExcl:          'Bedragen excl. BTW',
+  vatBasisIncl:          'Bedragen incl. BTW',
   you:                   'jou',
   thisBusiness:          'Dit bedrijf',
   validUntil:            'Geldig tot {date}',
@@ -281,6 +302,15 @@ const EN: PdfLabels = {
   page:                  'page',
   of:                    'of',
   dear:                  'Dear',
+  periodTotalsTitle:     'Period totals',
+  columnPerDay:          'Per day',
+  columnPerWeek:         'Per week',
+  columnPerMonth:        'Per month',
+  columnPerYear:         'Per year',
+  columnTotalContractTerm: 'Total over contract term',
+  contractBasisTemplate: 'based on {days} days per week, {weeks} weeks per year',
+  vatBasisExcl:          'Amounts excl. VAT',
+  vatBasisIncl:          'Amounts incl. VAT',
   you:                   'you',
   thisBusiness:          'This business',
   validUntil:            'Valid until {date}',
@@ -350,6 +380,15 @@ export function generatedWithLabel(locale: Locale, percent: number): string {
 
 export function pageOfLabel(locale: Locale, current: number, total: number): string {
   return fill(pdfLabels(locale).pageOf, { current, total })
+}
+
+export function contractBasisLabel(locale: Locale, days: number, weeks: number): string {
+  return fill(pdfLabels(locale).contractBasisTemplate, { days, weeks })
+}
+
+export function vatBasisLabel(locale: Locale, excludingVat: boolean): string {
+  const l = pdfLabels(locale)
+  return excludingVat ? l.vatBasisExcl : l.vatBasisIncl
 }
 
 export function validUntilLabel(locale: Locale, date: string): string {

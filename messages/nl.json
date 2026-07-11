@@ -277,6 +277,10 @@
     "guideParagraphBody": "{coverNoteToken} en {scopeTextToken} zijn door AI geschreven tekst, geen enkele regel — elk wordt al gerenderd als eigen HTML-alinea('s), plaats ze dus direct (wikkel ze niet in je eigen <p>-tag). Ze nemen automatisch het lettertype, de grootte en de kleur over van de container waarin je ze plaatst — geen aparte opmaak nodig.",
     "guideLabelTokensTitle": "Tweetalige labels:",
     "guideLabelTokensBody": "Typ nooit vaste tekst als \"Subtotaal\", \"BTW\" of \"Handtekening\" rechtstreeks in je template — gebruik in plaats daarvan een lbl_-token. Elke offerte heeft een eigen taal (Nederlands of Engels); deze tokens worden automatisch in die taal ingevuld, zodat één template altijd in de juiste taal wordt weergegeven:",
+    "guideRecurringTitle": "Terugkerende offertes — periodetotalen:",
+    "guideRecurringBody": "Wikkel een blok in {recurringStartToken} … {recurringEndToken} en het wordt alleen getoond bij terugkerende offertes — bij een eenmalige klus wordt het hele blok (inclusief de markeringen) verwijderd, dus er verschijnt nooit een lege kop. Het terugkerende blok in het voorbeeldtemplate bestaat uit maar twee regels, per dag en per maand, in dezelfde stijl als het totalenblok erboven:",
+    "guideRecurringAdvancedIntro": "Er bestaan nog een paar extra tokens als je een uitgebreidere uitsplitsing wilt (per week, per jaar, totaal over de contractduur, het aantal dagen per week en weken per jaar van het contract, en de eigen week-/jaaromzet per regel) — allemaal optioneel, met dezelfde regel: elk bedrag komt rechtstreeks uit de prijsengine, er wordt niets herberekend.",
+    "guideRecurringItemNote": "Deze twee mogen ook binnen de regelitemtabel (tussen LINE_ITEMS_START/END) — de week- en jaaromzet van die ene regel, ook alleen gevuld bij terugkerende offertes.",
     "downloadExample": "Download een volledig werkend voorbeeld",
     "readingTemplate": "Template lezen…",
     "chooseHtmlFile": "Kies een .html-bestand"

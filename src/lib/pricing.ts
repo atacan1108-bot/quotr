@@ -305,25 +305,60 @@ export function calculateRecurringPeriods(
   const monthlyCents = Math.round(yearlyCents / 12)
   const contractTotalCents = Math.round(monthlyCents * contractTermMonths)
 
-  function periodAmount(cents: number): RecurringPeriodAmount {
-    const vatCents = Math.round(cents * vatPercent / 100)
-    return {
-      ex_vat:     fromCents(cents),
-      vat_amount: fromCents(vatCents),
-      incl_vat:   fromCents(cents + vatCents),
-    }
-  }
-
   return {
     days_per_week:         daysPerWeek,
     weeks_per_year:        weeksPerYear,
     contract_term_months:  contractTermMonths,
-    per_day:        periodAmount(dailyCents),
-    per_week:       periodAmount(weeklyCents),
-    per_month:      periodAmount(monthlyCents),
-    per_year:       periodAmount(yearlyCents),
-    contract_total: periodAmount(contractTotalCents),
+    per_day:        periodAmount(dailyCents, vatPercent),
+    per_week:       periodAmount(weeklyCents, vatPercent),
+    per_month:      periodAmount(monthlyCents, vatPercent),
+    per_year:       periodAmount(yearlyCents, vatPercent),
+    contract_total: periodAmount(contractTotalCents, vatPercent),
   }
+}
+
+/** Shared by calculateRecurringPeriods and calculateRecurringItemPeriods —
+ * ONE formula for "cents → {ex_vat, vat_amount, incl_vat}", used identically
+ * whether it's applied to the whole quote's subtotal or to a single line. */
+function periodAmount(cents: number, vatPercent: number): RecurringPeriodAmount {
+  const vatCents = Math.round(cents * vatPercent / 100)
+  return {
+    ex_vat:     fromCents(cents),
+    vat_amount: fromCents(vatCents),
+    incl_vat:   fromCents(cents + vatCents),
+  }
+}
+
+/** One line item's own week/year figures — same day→week→year scaling as
+ * calculateRecurringPeriods above, just applied per line instead of to the
+ * whole quote's subtotal. Never used as the source of the quote-level
+ * totals (those always come from calculateRecurringPeriods itself) — this
+ * is purely for showing a per-line breakdown alongside the per-line daily
+ * rate a template already displays. */
+export interface RecurringItemPeriod {
+  label:        string
+  period_total: RecurringPeriodAmount  // per week — the item's own weekly contribution
+  year_total:   RecurringPeriodAmount
+}
+
+export function calculateRecurringItemPeriods(
+  items:      Pick<PricedItem, 'label' | 'line_total'>[],
+  terms:      RecurringContractTerms,
+  vatPercent: number,
+): RecurringItemPeriod[] {
+  const daysPerWeek  = safeNum(terms.days_per_week, 0)
+  const weeksPerYear = safeNum(terms.weeks_per_year, 0)
+
+  return items.map(item => {
+    const dailyCents  = toCents(safeNum(item.line_total, 0))
+    const weeklyCents = Math.round(dailyCents * daysPerWeek)
+    const yearlyCents = Math.round(weeklyCents * weeksPerYear)
+    return {
+      label:        item.label,
+      period_total: periodAmount(weeklyCents, vatPercent),
+      year_total:   periodAmount(yearlyCents, vatPercent),
+    }
+  })
 }
 
 // ─── Convenience helpers (exported for use in the UI) ────────────────────────

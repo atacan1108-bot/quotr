@@ -8,8 +8,8 @@
 import type { TemplateData, TemplateLineItem } from '@/lib/htmlTemplate'
 import { euro } from '@/lib/pdf/shared'
 import { formatDate } from '@/lib/formatDate'
-import { calculateRecurringPeriods } from '@/lib/pricing'
-import { pdfLabels, vatLabel } from '@/lib/pdf/pdfLabels'
+import { calculateRecurringPeriods, calculateRecurringItemPeriods } from '@/lib/pricing'
+import { pdfLabels, vatLabel, contractBasisLabel, vatBasisLabel } from '@/lib/pdf/pdfLabels'
 import type { Locale } from '@/i18n/config'
 
 // The SAME three sample items work for both quote types — there's only
@@ -20,13 +20,28 @@ const SAMPLE_ITEM_LABELS: Record<Locale, { labour: string; tap: string; calloutQ
   en: { labour: 'Labour — plumbing repair', tap: 'Replacement tap', calloutQty: '4 hours' },
 }
 
+const SAMPLE_TERMS = { days_per_week: 5, weeks_per_year: 52, contract_term_months: 12 }
+
+// Per-item period figures — derived from the SAME three line totals below
+// via the real pricing function (not hand-computed), so a template author
+// previews internally-consistent numbers, same as a real recurring quote.
+const SAMPLE_ITEM_TOTALS = [260, 138, 45]
+const sampleItemPeriods = calculateRecurringItemPeriods(
+  SAMPLE_ITEM_TOTALS.map(line_total => ({ label: '', line_total })),
+  SAMPLE_TERMS,
+  21,
+)
+
 export function getSampleTemplateItems(locale: Locale): TemplateLineItem[] {
   const l = SAMPLE_ITEM_LABELS[locale] ?? SAMPLE_ITEM_LABELS.nl
   const unitQty = locale === 'nl' ? '1 stuk' : '1 unit'
   return [
-    { item_label: l.labour, item_quantity: l.calloutQty, item_unit_price: euro(65),  item_total: euro(260) },
-    { item_label: l.tap,    item_quantity: unitQty,       item_unit_price: euro(138), item_total: euro(138) },
-    { item_label: locale === 'nl' ? 'Voorrijkosten' : 'Call-out fee', item_quantity: '1', item_unit_price: euro(45), item_total: euro(45) },
+    { item_label: l.labour, item_quantity: l.calloutQty, item_unit_price: euro(65),  item_total: euro(260),
+      item_period_total: euro(sampleItemPeriods[0].period_total.ex_vat), item_year_total: euro(sampleItemPeriods[0].year_total.ex_vat) },
+    { item_label: l.tap,    item_quantity: unitQty,       item_unit_price: euro(138), item_total: euro(138),
+      item_period_total: euro(sampleItemPeriods[1].period_total.ex_vat), item_year_total: euro(sampleItemPeriods[1].year_total.ex_vat) },
+    { item_label: locale === 'nl' ? 'Voorrijkosten' : 'Call-out fee', item_quantity: '1', item_unit_price: euro(45), item_total: euro(45),
+      item_period_total: euro(sampleItemPeriods[2].period_total.ex_vat), item_year_total: euro(sampleItemPeriods[2].year_total.ex_vat) },
   ]
 }
 
@@ -40,7 +55,7 @@ const TOTAL = SUBTOTAL + VAT
 // consistent with the line items above, same as a real recurring quote.
 const samplePeriods = calculateRecurringPeriods(
   { subtotal: SUBTOTAL, vat_percent: 21 },
-  { days_per_week: 5, weeks_per_year: 52, contract_term_months: 12 },
+  SAMPLE_TERMS,
 )
 
 const SAMPLE_TEXT: Record<Locale, { coverNote: string; scopeText: string; termsText: string }> = {
@@ -86,12 +101,20 @@ export function getSampleTemplateData(locale: Locale): TemplateData {
     total:             euro(TOTAL),
     terms_text:        text.termsText,
     footer_text:       'Your Business Name · Amsterdam',
+    total_per_day:          euro(samplePeriods.per_day.incl_vat),
     total_per_week:        euro(samplePeriods.per_week.incl_vat),
     total_per_month:       euro(samplePeriods.per_month.incl_vat),
     total_per_year:        euro(samplePeriods.per_year.incl_vat),
     total_contract_term:   euro(samplePeriods.contract_total.incl_vat),
+    subtotal_per_year:      euro(samplePeriods.per_year.ex_vat),
+    vat_amount_per_year:    euro(samplePeriods.per_year.vat_amount),
+    days_per_week:          String(samplePeriods.days_per_week),
+    weeks_per_year:         String(samplePeriods.weeks_per_year),
+    hours_per_day:          '8',
     contract_term_months:  String(samplePeriods.contract_term_months),
     notice_period_months:  '1',
+    contract_basis_text:    contractBasisLabel(locale, samplePeriods.days_per_week, samplePeriods.weeks_per_year),
+    vat_basis_note:          vatBasisLabel(locale, false),
     lbl_quote:                   l.quote,
     lbl_quote_for:               l.quoteFor,
     lbl_a_note_from:             l.aNoteFrom,
@@ -116,6 +139,12 @@ export function getSampleTemplateData(locale: Locale): TemplateData {
     lbl_page:                    l.page,
     lbl_of:                      l.of,
     lbl_dear:                    l.dear,
+    lbl_period_totals_title:     l.periodTotalsTitle,
+    lbl_per_day:                 l.columnPerDay,
+    lbl_per_week:                l.columnPerWeek,
+    lbl_per_month:               l.columnPerMonth,
+    lbl_per_year:                l.columnPerYear,
+    lbl_total_contract_term:     l.columnTotalContractTerm,
   }
 }
 

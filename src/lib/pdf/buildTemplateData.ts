@@ -16,10 +16,10 @@ import type { QuoteExportData } from '@/lib/quoteData'
 import type { TemplateData, TemplateLineItem } from '@/lib/htmlTemplate'
 import { euro } from '@/lib/pdf/shared'
 import { formatDate } from '@/lib/formatDate'
-import { pdfLabels, typeMeta, recurringRateItemText, vatLabel } from '@/lib/pdf/pdfLabels'
+import { pdfLabels, typeMeta, recurringRateItemText, vatLabel, contractBasisLabel, vatBasisLabel } from '@/lib/pdf/pdfLabels'
 
 export function buildTemplateData(data: QuoteExportData): { data: TemplateData; items: TemplateLineItem[]; isRecurring: boolean } {
-  const { job, proposal, rateCard, breakdown, recurringPeriods, quoteSequence } = data
+  const { job, proposal, rateCard, breakdown, recurringPeriods, recurringItemPeriods, quoteSequence } = data
   const client = job.clients
   const branding = rateCard.branding
   const isRecurring = job.quote_type === 'recurring' && !!recurringPeriods
@@ -61,12 +61,20 @@ export function buildTemplateData(data: QuoteExportData): { data: TemplateData; 
     total:            euro(breakdown.total),
     terms_text:       rateCard.terms_text ?? '',
     footer_text:      branding?.footerText ?? '',
+    total_per_day:          '',
     total_per_week:        '',
     total_per_month:       '',
     total_per_year:        '',
     total_contract_term:   '',
+    subtotal_per_year:      '',
+    vat_amount_per_year:    '',
+    days_per_week:          '',
+    weeks_per_year:         '',
+    hours_per_day:          '',
     contract_term_months:  '',
     notice_period_months:  '',
+    contract_basis_text:    '',
+    vat_basis_note:          '',
     lbl_quote:                   l.quote,
     lbl_quote_for:               l.quoteFor,
     lbl_a_note_from:             l.aNoteFrom,
@@ -91,26 +99,62 @@ export function buildTemplateData(data: QuoteExportData): { data: TemplateData; 
     lbl_page:                    l.page,
     lbl_of:                      l.of,
     lbl_dear:                    l.dear,
+    lbl_period_totals_title:     l.periodTotalsTitle,
+    lbl_per_day:                 l.columnPerDay,
+    lbl_per_week:                l.columnPerWeek,
+    lbl_per_month:               l.columnPerMonth,
+    lbl_per_year:                l.columnPerYear,
+    lbl_total_contract_term:     l.columnTotalContractTerm,
   }
 
   if (isRecurring) {
     const rp = recurringPeriods
     const useExVat = rateCard.prices_shown_excluding_vat
+    templateData.total_per_day        = euro(useExVat ? rp.per_day.ex_vat        : rp.per_day.incl_vat)
     templateData.total_per_week       = euro(useExVat ? rp.per_week.ex_vat       : rp.per_week.incl_vat)
     templateData.total_per_month      = euro(useExVat ? rp.per_month.ex_vat      : rp.per_month.incl_vat)
     templateData.total_per_year       = euro(useExVat ? rp.per_year.ex_vat       : rp.per_year.incl_vat)
     templateData.total_contract_term  = euro(useExVat ? rp.contract_total.ex_vat : rp.contract_total.incl_vat)
+    // Always ex-VAT, like the top-level `subtotal`/`vat_amount` tokens —
+    // these two aren't affected by the ex/incl toggle, they ARE the split.
+    templateData.subtotal_per_year    = euro(rp.per_year.ex_vat)
+    templateData.vat_amount_per_year  = euro(rp.per_year.vat_amount)
+    templateData.days_per_week        = rp.days_per_week > 0 ? String(rp.days_per_week) : ''
+    templateData.weeks_per_year       = rp.weeks_per_year > 0 ? String(rp.weeks_per_year) : ''
+    // No single "hours per day" figure exists for a whole recurring
+    // contract (only individual day-rate LINE ITEMS have one, as a
+    // reference-only quantity) — pass through the first day-rate item's
+    // own value if there is one, blank otherwise. Never invented.
+    const firstDayRateItem = breakdown.items.find(item => item.rate_type === 'day_rate')
+    templateData.hours_per_day        = firstDayRateItem && firstDayRateItem.quantity > 0
+      ? String(firstDayRateItem.quantity)
+      : ''
     templateData.contract_term_months = rp.contract_term_months > 0 ? String(rp.contract_term_months) : ''
     templateData.notice_period_months = job.recurring_config?.notice_period_months
       ? String(job.recurring_config.notice_period_months)
       : ''
+    templateData.contract_basis_text  = rp.days_per_week > 0 && rp.weeks_per_year > 0
+      ? contractBasisLabel(locale, rp.days_per_week, rp.weeks_per_year)
+      : ''
+    templateData.vat_basis_note       = vatBasisLabel(locale, useExVat)
   }
 
   // Recurring lines (rate_type set) show their rate and what it's per
   // ("€ 255,00/day (€ 51,00/hr)", "€ 65,00/hr", etc.) instead of the
   // one-off labour/material/fixed formatting — same item_quantity/
   // item_unit_price tokens either way, just different text in them.
-  const items: TemplateLineItem[] = breakdown.items.map(item => {
+  // Same day→week→year scaling as the quote-level total_per_* tokens above,
+  // applied per line — computed once in quoteData.ts (calculateRecurringItemPeriods),
+  // matched back to each item here by array position (both derive from the
+  // exact same breakdown.items array, in the same order).
+  const itemPeriods = recurringItemPeriods
+  const useExVatForItems = rateCard.prices_shown_excluding_vat
+
+  const items: TemplateLineItem[] = breakdown.items.map((item, i) => {
+    const ip = itemPeriods?.[i]
+    const item_period_total = ip ? euro(useExVatForItems ? ip.period_total.ex_vat : ip.period_total.incl_vat) : ''
+    const item_year_total   = ip ? euro(useExVatForItems ? ip.year_total.ex_vat   : ip.year_total.incl_vat)   : ''
+
     if (item.rate_type) {
       const { quantityText, rateText } = recurringRateItemText(locale, item.rate_type, item.quantity, item.unit_cost)
       return {
@@ -118,6 +162,8 @@ export function buildTemplateData(data: QuoteExportData): { data: TemplateData; 
         item_quantity:   quantityText,
         item_unit_price: rateText,
         item_total:      euro(item.line_total),
+        item_period_total,
+        item_year_total,
       }
     }
     return {
@@ -125,6 +171,8 @@ export function buildTemplateData(data: QuoteExportData): { data: TemplateData; 
       item_quantity:   typeMeta(locale, item.type, item.quantity),
       item_unit_price: euro(item.unit_cost),
       item_total:      euro(item.line_total),
+      item_period_total,
+      item_year_total,
     }
   })
 

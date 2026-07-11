@@ -51,12 +51,23 @@ export interface TemplateData {
   footer_text:       string
   // Recurring quotes only — meaningful inside a <!-- RECURRING_START/END -->
   // region (see above). Blank for one-off quotes. See buildTemplateData.
+  total_per_day:          string
   total_per_week:        string
   total_per_month:       string
   total_per_year:        string
   total_contract_term:   string
+  subtotal_per_year:      string  // always ex-VAT, like the top-level `subtotal` token
+  vat_amount_per_year:    string
+  days_per_week:          string
+  weeks_per_year:         string
+  hours_per_day:          string  // from the first day-rate line item's quantity, if any — blank if none
   contract_term_months:  string
   notice_period_months:  string
+  // Pre-composed, already-translated sentences — a template author drops
+  // these in directly rather than hand-assembling static Dutch/English text
+  // around the raw numbers above, which would break on the other language.
+  contract_basis_text:    string  // "op basis van 5 dagen per week, 52 weken per jaar" / English equivalent
+  vat_basis_note:          string  // "Bedragen excl. BTW" / "Amounts excl. VAT" (or incl., matching prices_shown_excluding_vat)
   // Static-label tokens — one template serves both languages. Resolved
   // from src/lib/pdf/pdfLabels.ts by job.language, not the token system
   // itself. A template author uses these instead of typing "Subtotaal"/
@@ -85,6 +96,13 @@ export interface TemplateData {
   lbl_page:                   string
   lbl_of:                     string
   lbl_dear:                   string
+  // Recurring-quote period-totals block labels — see pdfLabels.ts.
+  lbl_period_totals_title:    string
+  lbl_per_day:                string
+  lbl_per_week:                string
+  lbl_per_month:              string
+  lbl_per_year:               string
+  lbl_total_contract_term:    string
 }
 
 /** One repeated row in the LINE_ITEMS region — identical for both quote types. */
@@ -94,6 +112,11 @@ export interface TemplateLineItem {
   item_quantity:    string
   item_unit_price:  string
   item_total:       string
+  // Recurring quotes only — this line's own week/year contribution, same
+  // day→week→year scaling as the quote-level total_per_* tokens, applied
+  // per line. Blank for one-off quotes and one-off line items.
+  item_period_total: string  // per week
+  item_year_total:   string
 }
 
 export const SCALAR_TOKENS = [
@@ -102,15 +125,20 @@ export const SCALAR_TOKENS = [
   'customer_name', 'customer_address', 'customer_email', 'customer_phone',
   'quote_number', 'quote_date', 'cover_note', 'scope_text',
   'subtotal', 'vat_percent', 'vat_amount', 'total', 'terms_text', 'footer_text',
-  'total_per_week', 'total_per_month', 'total_per_year', 'total_contract_term',
-  'contract_term_months', 'notice_period_months',
+  'total_per_day', 'total_per_week', 'total_per_month', 'total_per_year', 'total_contract_term',
+  'subtotal_per_year', 'vat_amount_per_year', 'days_per_week', 'weeks_per_year', 'hours_per_day',
+  'contract_term_months', 'notice_period_months', 'contract_basis_text', 'vat_basis_note',
   'lbl_quote', 'lbl_quote_for', 'lbl_a_note_from', 'lbl_client', 'lbl_from', 'lbl_details', 'lbl_quote_number', 'lbl_date',
   'lbl_description', 'lbl_quantity', 'lbl_rate', 'lbl_amount', 'lbl_subtotal', 'lbl_vat', 'lbl_total',
   'lbl_scope_of_work', 'lbl_terms_and_conditions', 'lbl_for_approval_contractor',
   'lbl_for_approval_client', 'lbl_signature_and_date', 'lbl_initials', 'lbl_page', 'lbl_of', 'lbl_dear',
+  'lbl_period_totals_title', 'lbl_per_day', 'lbl_per_week', 'lbl_per_month', 'lbl_per_year', 'lbl_total_contract_term',
 ] as const satisfies readonly (keyof TemplateData)[]
 
-export const LINE_ITEM_TOKENS = ['item_label', 'item_quantity', 'item_unit_price', 'item_total'] as const
+export const LINE_ITEM_TOKENS = [
+  'item_label', 'item_quantity', 'item_unit_price', 'item_total',
+  'item_period_total', 'item_year_total',
+] as const
 
 const LINE_ITEMS_REGION  = /<!--\s*LINE_ITEMS_START\s*-->([\s\S]*?)<!--\s*LINE_ITEMS_END\s*-->/
 const RECURRING_REGION   = /<!--\s*RECURRING_START\s*-->([\s\S]*?)<!--\s*RECURRING_END\s*-->/
@@ -190,9 +218,34 @@ function escapeHtmlParagraphs(value: string): string {
 
 function replaceTokens(html: string, values: Record<string, string>): string {
   return html.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, token: string) => {
-    if (!(token in values)) return match // unknown token — leave visible rather than silently vanish
+    if (!(token in values)) return match // unknown token — leave visible so findLeftoverTokens can catch it
     return PARAGRAPH_TOKENS.has(token) ? escapeHtmlParagraphs(values[token]) : escapeHtml(values[token])
   })
+}
+
+/** Any `{{...}}`-shaped text still present after filling — this means a
+ * token name in the template doesn't match any key the caller supplied
+ * (e.g. a code/template drift like the one that shipped raw placeholders
+ * to a customer). Not the same as a token that was replaced WITH an empty
+ * string — that's fine, this only catches names nothing ever recognized. */
+export function findLeftoverTokens(html: string): string[] {
+  const found = new Set<string>()
+  for (const m of html.matchAll(/\{\{\s*(\w+)\s*\}\}/g)) found.add(m[1])
+  return [...found]
+}
+
+/** Thrown by fillTemplate() when leftover tokens are found — a PDF must
+ * never be rendered from HTML containing raw {{tokens}}, since that's
+ * customer-facing. Callers should surface this as a clear failure (and,
+ * where a safe fallback design exists, use it) rather than serve the
+ * broken HTML. */
+export class UnfilledTokenError extends Error {
+  tokens: string[]
+  constructor(tokens: string[]) {
+    super(`Template has unfilled tokens that don't match any known value: ${tokens.map(t => `{{${t}}}`).join(', ')}`)
+    this.name = 'UnfilledTokenError'
+    this.tokens = tokens
+  }
 }
 
 /**
@@ -205,6 +258,10 @@ function replaceTokens(html: string, values: Record<string, string>): string {
  *   there's never an empty contract-terms heading with no value next to it.
  *   When true, the markers are stripped but the content stays, with its
  *   tokens filled normally.
+ *
+ * @throws UnfilledTokenError if any {{token}} survives filling — this is
+ *   the hard stop that keeps a broken, half-rendered document from ever
+ *   reaching a customer.
  */
 export function fillTemplate(
   templateHtml: string,
@@ -217,6 +274,10 @@ export function fillTemplate(
   })
   html = html.replace(RECURRING_REGION, (_match, inner: string) => (isRecurring ? inner : ''))
   html = replaceTokens(html, data)
+
+  const leftover = findLeftoverTokens(html)
+  if (leftover.length > 0) throw new UnfilledTokenError(leftover)
+
   return html
 }
 

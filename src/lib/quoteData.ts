@@ -4,8 +4,8 @@
  */
 
 import { createClient } from './supabase/server'
-import { calculateProposal, calculateRecurringPeriods } from './pricing'
-import type { ProposalBreakdown, RecurringPeriods } from './pricing'
+import { calculateProposal, calculateRecurringPeriods, calculateRecurringItemPeriods } from './pricing'
+import type { ProposalBreakdown, RecurringPeriods, RecurringItemPeriod } from './pricing'
 import type { Job, Client, Proposal, RateCard } from './types'
 import { EMPTY_BRANDING } from './types'
 
@@ -36,6 +36,8 @@ export interface QuoteExportData {
   breakdown: ProposalBreakdown
   /** Derived from `breakdown` + job.recurring_config — null for one-off jobs. */
   recurringPeriods: RecurringPeriods | null
+  /** Same scaling as recurringPeriods, applied per line item — null for one-off jobs. */
+  recurringItemPeriods: RecurringItemPeriod[] | null
   shareUrl: string
   /**
    * Stable per-contractor sequence number for this proposal (1, 2, 3, ...),
@@ -106,12 +108,16 @@ export async function getQuoteExportData(
 
   // Recurring jobs scale that SAME breakdown up by the contract terms —
   // null for one-off jobs so callers can tell the two apart unambiguously.
+  const recurringTerms = {
+    days_per_week:        job.recurring_config?.days_per_week ?? 0,
+    weeks_per_year:       job.recurring_config?.weeks_per_year ?? 0,
+    contract_term_months: job.recurring_config?.contract_term_months ?? 0,
+  }
   const recurringPeriods = job.quote_type === 'recurring'
-    ? calculateRecurringPeriods(breakdown, {
-        days_per_week:        job.recurring_config?.days_per_week ?? 0,
-        weeks_per_year:       job.recurring_config?.weeks_per_year ?? 0,
-        contract_term_months: job.recurring_config?.contract_term_months ?? 0,
-      })
+    ? calculateRecurringPeriods(breakdown, recurringTerms)
+    : null
+  const recurringItemPeriods = job.quote_type === 'recurring'
+    ? calculateRecurringItemPeriods(breakdown.items, recurringTerms, breakdown.vat_percent)
     : null
 
   const shareUrl = proposal?.share_token
@@ -134,6 +140,7 @@ export async function getQuoteExportData(
     rateCard: rc,
     breakdown,
     recurringPeriods,
+    recurringItemPeriods,
     shareUrl,
     quoteSequence,
   }

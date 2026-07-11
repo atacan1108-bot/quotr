@@ -238,6 +238,24 @@ export default function TemplateUploadSection({ accent, hasExistingTemplate }: P
           <p className="font-mono text-[11px] mb-2 break-words">
             {'{{lbl_quote}} {{lbl_quote_for}} {{lbl_a_note_from}} {{lbl_dear}} {{lbl_client}} {{lbl_from}} {{lbl_details}} {{lbl_quote_number}} {{lbl_date}} {{lbl_description}} {{lbl_quantity}} {{lbl_rate}} {{lbl_amount}} {{lbl_subtotal}} {{lbl_vat}} {{lbl_total}} {{lbl_scope_of_work}} {{lbl_terms_and_conditions}} {{lbl_for_approval_contractor}} {{lbl_for_approval_client}} {{lbl_signature_and_date}} {{lbl_initials}} {{lbl_page}} {{lbl_of}}'}
           </p>
+          <p className="mb-2">
+            <strong>{t('guideRecurringTitle')}</strong> {t('guideRecurringBody', { recurringStartToken: '<!-- RECURRING_START -->', recurringEndToken: '<!-- RECURRING_END -->' })}
+          </p>
+          <p className="font-mono text-[11px] mb-2 break-words">
+            {'<!-- RECURRING_START --> {{lbl_per_day}} {{total_per_day}} {{lbl_per_month}} {{total_per_month}} {{vat_basis_note}} <!-- RECURRING_END -->'}
+          </p>
+          <p className="mb-2">
+            {t('guideRecurringAdvancedIntro')}
+          </p>
+          <p className="font-mono text-[11px] mb-2 break-words">
+            {'{{lbl_per_week}} {{total_per_week}} {{lbl_per_year}} {{total_per_year}} {{lbl_total_contract_term}} {{total_contract_term}} {{lbl_period_totals_title}} {{contract_basis_text}} {{days_per_week}} {{weeks_per_year}} {{hours_per_day}} {{contract_term_months}} {{subtotal_per_year}} {{vat_amount_per_year}}'}
+          </p>
+          <p className="font-mono text-[11px] mb-2 break-words">
+            {'{{item_period_total}} {{item_year_total}}'}
+          </p>
+          <p className="mb-2">
+            {t('guideRecurringItemNote')}
+          </p>
           <a href="/example-quote-template.html" download className="underline font-medium" style={{ color: accent }}>
             {t('downloadExample')}
           </a>

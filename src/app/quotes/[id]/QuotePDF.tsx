@@ -8,7 +8,7 @@ import {
   Document, Page, Text, View, StyleSheet,
 } from '@react-pdf/renderer'
 import type { QuoteExportData } from '@/lib/quoteData'
-import { pdfLabels, itemTypeLabel, vatLabel, generatedWithLabel } from '@/lib/pdf/pdfLabels'
+import { pdfLabels, itemTypeLabel, vatLabel, generatedWithLabel, vatBasisLabel } from '@/lib/pdf/pdfLabels'
 import { formatDate } from '@/lib/formatDate'
 
 // Money formatting stays nl-NL style regardless of quote language.
@@ -68,16 +68,22 @@ const s = StyleSheet.create({
   footer:        { marginTop: 36, borderTopWidth: 1, borderTopColor: RULE, paddingTop: 12 },
   footerTxt:     { fontSize: 7, color: MUTED, lineHeight: 1.6 },
   shareUrl:      { fontSize: 7, color: TEAL, marginTop: 6 },
+  // Recurring-quote totals — same row style as totalsBlock above, just two
+  // more lines directly below it.
+  periodBlock:  { marginTop: 8, alignSelf: 'flex-end', width: 220 },
+  periodBasis:  { fontSize: 7, color: MUTED, marginTop: 2, textAlign: 'right' },
 })
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function QuotePDF({ data }: { data: QuoteExportData }) {
-  const { job, rateCard, breakdown, shareUrl } = data
+  const { job, rateCard, breakdown, shareUrl, recurringPeriods } = data
   const client = job.clients
   // Customer-facing document — follows the QUOTE's own language.
   const locale = job.language
   const l = pdfLabels(locale)
+  const isRecurring = job.quote_type === 'recurring' && !!recurringPeriods
+  const useExVat = rateCard.prices_shown_excluding_vat
 
   return (
     <Document
@@ -187,6 +193,24 @@ export function QuotePDF({ data }: { data: QuoteExportData }) {
             <Text style={s.grandVal}>{euro(breakdown.total)}</Text>
           </View>
         </View>
+
+        {/* ── Recurring quotes only: per-day and per-month totals — the
+               SAME figures the app's live summary shows, straight from
+               calculateRecurringPeriods, nothing recomputed here. Same row
+               style as the totals block directly above. ──────────────── */}
+        {isRecurring && recurringPeriods && (
+          <View style={s.periodBlock}>
+            <View style={s.totRow}>
+              <Text style={s.totLabel}>{l.columnPerDay}</Text>
+              <Text style={s.totVal}>{euro(useExVat ? recurringPeriods.per_day.ex_vat : recurringPeriods.per_day.incl_vat)}</Text>
+            </View>
+            <View style={s.totRow}>
+              <Text style={s.totLabel}>{l.columnPerMonth}</Text>
+              <Text style={s.totVal}>{euro(useExVat ? recurringPeriods.per_month.ex_vat : recurringPeriods.per_month.incl_vat)}</Text>
+            </View>
+            <Text style={s.periodBasis}>{vatBasisLabel(locale, useExVat)}</Text>
+          </View>
+        )}
 
         {/* ── Footer ──────────────────────────────────────────── */}
         <View style={s.footer}>

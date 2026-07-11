@@ -277,6 +277,10 @@
     "guideParagraphBody": "{coverNoteToken} and {scopeTextToken} are AI-written prose, not one line — each already renders as its own HTML paragraph(s), so place them directly (don't wrap them in your own <p> tag). They pick up whatever font, size and color the container you put them in already uses — no separate styling needed.",
     "guideLabelTokensTitle": "Bilingual labels:",
     "guideLabelTokensBody": "Never type fixed chrome text like \"Subtotal\", \"VAT\", or \"Signature\" directly into your template — use an lbl_ token instead. Every quote has its own language (Dutch or English); these tokens are automatically filled in that language, so one template always displays in the right one:",
+    "guideRecurringTitle": "Recurring quotes — period totals:",
+    "guideRecurringBody": "Wrap a block in {recurringStartToken} … {recurringEndToken} and it only shows up on recurring quotes — for a one-off job the whole block (markers included) is removed, so there's never an empty heading. The example template's recurring block is just two lines, per day and per month, styled like the totals block above it:",
+    "guideRecurringAdvancedIntro": "A few more recurring tokens exist if you want a more detailed breakdown (per week, per year, total over the contract term, the contract's days/week and weeks/year, and each line's own week/year total) — all optional, same rule: every figure comes straight from the pricing engine, nothing is recalculated.",
+    "guideRecurringItemNote": "These two can also go inside the line-items row (between LINE_ITEMS_START/END) — that one line's own week and year totals, also only filled in on recurring quotes.",
     "downloadExample": "Download a complete working example",
     "readingTemplate": "Reading your template…",
     "chooseHtmlFile": "Choose an .html file"
