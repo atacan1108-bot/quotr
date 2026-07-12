@@ -100,6 +100,11 @@ export interface PdfLabels {
   invalidLinkBody:       string
   declinedTitle:         string
   declinedBody:          string
+  // Shown instead of declinedTitle/Body when THIS visitor is the one who
+  // declined it (proposal.declined_at set) — declinedTitle/Body above stay
+  // for the other case, the contractor withdrawing the quote themselves.
+  declinedByYouTitle:    string
+  declinedByYouBody:     string
   expiredTitle:          string
   expiredBody:           string // "This quote was valid until {date}. Ask the business that sent it for an updated quote."
   // Accept & sign panel (AcceptSignSection.tsx) — same public, no-session
@@ -123,6 +128,15 @@ export interface PdfLabels {
   signatureLooksGood:    string
   signatureDrawPrompt:   string
   signatureClear:        string
+  // Decline sub-flow — a subtle secondary action alongside Accept & sign,
+  // in the same AcceptSignSection card.
+  declineThisQuote:      string // subtle link text, e.g. "Decline this quote"
+  declineConfirmTitle:   string // small heading shown once expanded
+  declineReasonLabel:    string // optional textarea label
+  declineReasonPlaceholder: string
+  confirmDecline:        string // button label
+  cancelDecline:         string // "Never mind" / back-out link
+  decliningStatus:       string // shown on the button while submitting
   // Accept route (public, no session) — errors returned to the customer,
   // and the "share_token invalid" case that has no quote loaded yet.
   linkNotValid:          string // "This quote link isn't valid."
@@ -132,10 +146,16 @@ export interface PdfLabels {
   somethingWentWrong:    string
   noLongerAvailable:     string
   quoteExpiredShort:     string
+  alreadyAcceptedCannotDecline: string // decline route error when accepted_at is already set
   // Contractor notification email (sent in the CONTRACTOR's own app
   // language, not the quote's language — see rate_cards.language).
-  emailAcceptedSubject:  string // "{client} accepted your quote — {total}"
+  emailAcceptedSubject:  string // "{client} accepted your quote {quoteNumber}"
   emailAcceptedIntro:    string // "<strong>{client}</strong> just accepted and signed the quote for <strong>{job}</strong>."
+  emailDeclinedSubject:  string // "{client} declined your quote {quoteNumber}"
+  emailDeclinedIntro:    string // "<strong>{client}</strong> declined the quote for <strong>{job}</strong>."
+  emailDeclineReasonLabel: string // "Reason given:"
+  emailTimeLabel:        string
+  emailViewInApp:        string // link text, "View in Quotr"
   emailTotalLabel:       string
   emailDownloadSignedPdf: string
 }
@@ -215,6 +235,8 @@ const NL: PdfLabels = {
   invalidLinkBody:       'De offerte is mogelijk verwijderd, of de link is niet goed gekopieerd. Vraag het bedrijf dat de link stuurde om een nieuwe.',
   declinedTitle:         'Deze offerte is niet meer beschikbaar',
   declinedBody:          'Het bedrijf dat deze offerte stuurde heeft hem ingetrokken. Neem rechtstreeks contact op bij vragen.',
+  declinedByYouTitle:    'Je hebt deze offerte afgewezen',
+  declinedByYouBody:     'Bedankt dat je het hebt laten weten. Heb je toch nog vragen? Neem gerust rechtstreeks contact op met het bedrijf.',
   expiredTitle:          'Deze offerte is verlopen',
   expiredBody:           'Deze offerte was geldig tot {date}. Vraag het bedrijf dat de offerte stuurde om een nieuwe.',
   acceptSignTitle:       'Akkoord & ondertekenen',
@@ -236,6 +258,13 @@ const NL: PdfLabels = {
   signatureLooksGood:    'Ziet er goed uit.',
   signatureDrawPrompt:   'Teken je handtekening hierboven',
   signatureClear:        'Wissen',
+  declineThisQuote:      'Offerte afwijzen',
+  declineConfirmTitle:   'Offerte afwijzen',
+  declineReasonLabel:    'Reden (optioneel)',
+  declineReasonPlaceholder: 'Laat weten waarom, als je wilt…',
+  confirmDecline:        'Ja, afwijzen',
+  cancelDecline:         'Toch niet',
+  decliningStatus:       'Bezig…',
   linkNotValid:          'Deze offertelink is niet geldig.',
   invalidRequest:        'Ongeldig verzoek.',
   nameRequired:          'Vul je naam in.',
@@ -243,8 +272,14 @@ const NL: PdfLabels = {
   somethingWentWrong:    'Er is iets misgegaan — probeer het opnieuw.',
   noLongerAvailable:     'Deze offerte is niet meer beschikbaar.',
   quoteExpiredShort:     'Deze offerte is verlopen.',
-  emailAcceptedSubject:  '{client} heeft je offerte geaccepteerd — {total}',
+  alreadyAcceptedCannotDecline: 'Deze offerte is al geaccepteerd en kan niet meer worden afgewezen.',
+  emailAcceptedSubject:  '{client} heeft offerte {quoteNumber} geaccepteerd',
   emailAcceptedIntro:    '<strong>{client}</strong> heeft zojuist de offerte voor <strong>{job}</strong> geaccepteerd en ondertekend.',
+  emailDeclinedSubject:  '{client} heeft offerte {quoteNumber} afgewezen',
+  emailDeclinedIntro:    '<strong>{client}</strong> heeft de offerte voor <strong>{job}</strong> afgewezen.',
+  emailDeclineReasonLabel: 'Opgegeven reden:',
+  emailTimeLabel:        'Tijdstip:',
+  emailViewInApp:        'Bekijk in Quotr',
   emailTotalLabel:       'Totaal:',
   emailDownloadSignedPdf: 'Download de ondertekende PDF',
 }
@@ -324,6 +359,8 @@ const EN: PdfLabels = {
   invalidLinkBody:       'The quote may have been removed, or the link was copied incorrectly. Ask the business that sent it for a new link.',
   declinedTitle:         'This quote is no longer available',
   declinedBody:          'The business that sent this quote has withdrawn it. Get in touch with them directly if you have questions.',
+  declinedByYouTitle:    'You declined this quote',
+  declinedByYouBody:     'Thanks for letting us know. If you still have questions, feel free to contact the business directly.',
   expiredTitle:          'This quote has expired',
   expiredBody:           'This quote was valid until {date}. Ask the business that sent it for an updated quote.',
   acceptSignTitle:       'Accept & sign',
@@ -345,6 +382,13 @@ const EN: PdfLabels = {
   signatureLooksGood:    'Looks good.',
   signatureDrawPrompt:   'Draw your signature above',
   signatureClear:        'Clear',
+  declineThisQuote:      'Decline this quote',
+  declineConfirmTitle:   'Decline this quote',
+  declineReasonLabel:    'Reason (optional)',
+  declineReasonPlaceholder: 'Let them know why, if you\'d like…',
+  confirmDecline:        'Yes, decline',
+  cancelDecline:         'Never mind',
+  decliningStatus:       'Submitting…',
   linkNotValid:          'This quote link isn\'t valid.',
   invalidRequest:        'Invalid request.',
   nameRequired:          'Please enter your name.',
@@ -352,8 +396,14 @@ const EN: PdfLabels = {
   somethingWentWrong:    'Something went wrong — please try again.',
   noLongerAvailable:     'This quote is no longer available.',
   quoteExpiredShort:     'This quote has expired.',
-  emailAcceptedSubject:  '{client} accepted your quote — {total}',
+  alreadyAcceptedCannotDecline: 'This quote has already been accepted and can no longer be declined.',
+  emailAcceptedSubject:  '{client} accepted quote {quoteNumber}',
   emailAcceptedIntro:    '<strong>{client}</strong> just accepted and signed the quote for <strong>{job}</strong>.',
+  emailDeclinedSubject:  '{client} declined quote {quoteNumber}',
+  emailDeclinedIntro:    '<strong>{client}</strong> declined the quote for <strong>{job}</strong>.',
+  emailDeclineReasonLabel: 'Reason given:',
+  emailTimeLabel:        'Time:',
+  emailViewInApp:        'View in Quotr',
   emailTotalLabel:       'Total:',
   emailDownloadSignedPdf: 'Download the signed PDF',
 }
@@ -411,14 +461,24 @@ export function signedByLabel(locale: Locale, name: string): string {
   return fill(pdfLabels(locale).signedBy, { name })
 }
 
-export function emailAcceptedSubjectLabel(locale: Locale, client: string, total: string): string {
-  return fill(pdfLabels(locale).emailAcceptedSubject, { client, total })
+export function emailAcceptedSubjectLabel(locale: Locale, client: string, quoteNumber: string): string {
+  return fill(pdfLabels(locale).emailAcceptedSubject, { client, quoteNumber })
 }
 
 /** client/job are already HTML-escaped by the caller before this fills them
  * into the fixed <strong> markup baked into the template string. */
 export function emailAcceptedIntroLabel(locale: Locale, client: string, job: string): string {
   return fill(pdfLabels(locale).emailAcceptedIntro, { client, job })
+}
+
+export function emailDeclinedSubjectLabel(locale: Locale, client: string, quoteNumber: string): string {
+  return fill(pdfLabels(locale).emailDeclinedSubject, { client, quoteNumber })
+}
+
+/** client/job are already HTML-escaped by the caller before this fills them
+ * into the fixed <strong> markup baked into the template string. */
+export function emailDeclinedIntroLabel(locale: Locale, client: string, job: string): string {
+  return fill(pdfLabels(locale).emailDeclinedIntro, { client, job })
 }
 
 /** Same formatting the one-off item quantity column has always used

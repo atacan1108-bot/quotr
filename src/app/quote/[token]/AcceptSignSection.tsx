@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import SignaturePad from './SignaturePad'
 import { pdfLabels, thankYouNotifiedLabel, signedByLabel } from '@/lib/pdf/pdfLabels'
 import type { Locale } from '@/i18n/config'
@@ -21,6 +22,7 @@ type Mode   = 'draw' | 'type'
 export default function AcceptSignSection({
   token, businessName, alreadyAccepted, initialSignerName, initialSignedPdfUrl, primaryColor, language,
 }: Props) {
+  const router = useRouter()
   const l = pdfLabels(language)
   const [status, setStatus]   = useState<Status>(alreadyAccepted ? 'done' : 'form')
   const [error, setError]     = useState<string | null>(null)
@@ -30,8 +32,45 @@ export default function AcceptSignSection({
   const [agreed, setAgreed]   = useState(false)
   const [signedPdfUrl, setSignedPdfUrl] = useState(initialSignedPdfUrl)
 
+  // ── Decline sub-flow — a secondary, mutually exclusive response to the
+  // same quote. Collapsed by default; expanding it hides nothing else, it's
+  // just an extra panel under the Accept & sign form. ─────────────────────
+  const [declineOpen,    setDeclineOpen]    = useState(false)
+  const [declineReason,  setDeclineReason]  = useState('')
+  const [declining,      setDeclining]      = useState(false)
+  const [declineError,   setDeclineError]   = useState<string | null>(null)
+
   const nameEntered = signerName.trim().length > 0
   const canSubmit   = nameEntered && agreed && (mode === 'type' || signatureDataUrl !== null)
+
+  async function submitDecline() {
+    if (declining) return
+    setDeclining(true)
+    setDeclineError(null)
+    try {
+      const res = await fetch(`/api/public/proposals/${token}/decline`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: declineReason.trim() || undefined }),
+      })
+      let data: { ok?: boolean; error?: string } | null = null
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error(l.sessionExpiredRetry)
+      }
+      if (!res.ok || !data?.ok) throw new Error(data?.error || l.somethingWentWrongRetry)
+
+      // Re-fetch server-side so the page re-derives quote.status and shows
+      // the "you declined this quote" state — same mechanism as any other
+      // status change on this page, no separate local confirmation UI to
+      // keep in sync with it.
+      router.refresh()
+    } catch (err) {
+      setDeclineError(err instanceof Error ? err.message : l.somethingWentWrongRetry)
+      setDeclining(false)
+    }
+  }
 
   async function submit() {
     if (!canSubmit) return
@@ -180,6 +219,60 @@ export default function AcceptSignSection({
           </>
         ) : l.acceptAndSign}
       </button>
+
+      {/* ── Decline — secondary/subtle, mutually exclusive with Accept ── */}
+      {!declineOpen ? (
+        <button
+          type="button"
+          onClick={() => setDeclineOpen(true)}
+          disabled={status === 'submitting'}
+          className="w-full h-11 mt-2 text-sm font-medium text-muted hover:text-red-600 transition disabled:opacity-40"
+        >
+          {l.declineThisQuote}
+        </button>
+      ) : (
+        <div className="mt-4 pt-4 border-t border-border">
+          <h4 className="text-sm font-semibold text-on-surface mb-2">{l.declineConfirmTitle}</h4>
+          <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1.5">
+            {l.declineReasonLabel}
+          </label>
+          <textarea
+            value={declineReason}
+            onChange={e => setDeclineReason(e.target.value)}
+            placeholder={l.declineReasonPlaceholder}
+            rows={3}
+            className="w-full rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent transition resize-y mb-3"
+          />
+
+          {declineError && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 mb-3">
+              <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+              </svg>
+              <p className="text-xs text-red-700 leading-snug">{declineError}</p>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setDeclineOpen(false); setDeclineError(null) }}
+              disabled={declining}
+              className="flex-1 h-11 rounded-xl border border-border text-sm font-medium text-on-surface hover:bg-surface transition disabled:opacity-60"
+            >
+              {l.cancelDecline}
+            </button>
+            <button
+              type="button"
+              onClick={submitDecline}
+              disabled={declining}
+              className="flex-1 h-11 rounded-xl border border-red-300 text-sm font-semibold text-red-600 hover:bg-red-50 transition disabled:opacity-60"
+            >
+              {declining ? l.decliningStatus : l.confirmDecline}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

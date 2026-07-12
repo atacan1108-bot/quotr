@@ -52,7 +52,13 @@ export default async function PublicQuotePage({ params }: { params: Promise<{ to
   const l = pdfLabels(locale)
 
   if (quote.status === 'declined') {
-    return <CleanState title={l.declinedTitle} body={l.declinedBody} />
+    // Two different reasons a quote can be "declined" — the customer
+    // declined it themselves right here (declinedAt set), or the
+    // contractor withdrew it from their own dashboard (job.status set
+    // directly, no declinedAt). Different, non-confusing copy for each.
+    return quote.declinedAt
+      ? <CleanState title={l.declinedByYouTitle} body={l.declinedByYouBody} />
+      : <CleanState title={l.declinedTitle} body={l.declinedBody} />
   }
   if (quote.status === 'expired') {
     return <CleanState
@@ -190,6 +196,9 @@ export default async function PublicQuotePage({ params }: { params: Promise<{ to
           primaryColor={primary}
           language={locale}
         />
+        {/* AcceptSignSection also owns the "Decline this quote" sub-flow —
+            they're mutually exclusive responses to the same quote, so they
+            live in one card rather than two independent components. */}
 
         <p className="text-center text-xs text-muted mt-8">
           {branding.footerText || l.sentViaQuotr}

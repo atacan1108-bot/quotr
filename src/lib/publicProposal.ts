@@ -33,6 +33,12 @@ export interface PublicQuoteView {
   acceptedAt:  string | null
   signerName:      string | null
   signedPdfUrl:    string | null
+  // Customer-declined-on-this-page tracking — null unless THIS visitor (or
+  // an earlier visit with the same token) declined it here. Distinct from
+  // status === 'declined' with declinedAt === null, which means the
+  // CONTRACTOR withdrew the quote from their own dashboard instead.
+  declinedAt:      string | null
+  declineReason:   string | null
   business: {
     name:    string | null
     address: string | null
@@ -68,7 +74,7 @@ export async function getPublicProposalByToken(token: string): Promise<PublicQuo
 
   const { data: proposal } = await admin
     .from('proposals')
-    .select('id, created_at, job_id, owner_id, computed_totals, scope_text, cover_note, pdf_url, opened_at, accepted_at, signer_name, signed_pdf_url')
+    .select('id, created_at, job_id, owner_id, computed_totals, scope_text, cover_note, pdf_url, opened_at, accepted_at, signer_name, signed_pdf_url, declined_at, decline_reason')
     .eq('share_token', token)
     .maybeSingle()
   if (!proposal) return null
@@ -134,6 +140,8 @@ export async function getPublicProposalByToken(token: string): Promise<PublicQuo
     acceptedAt: proposal.accepted_at,
     signerName:   proposal.signer_name,
     signedPdfUrl: proposal.signed_pdf_url,
+    declinedAt:    proposal.declined_at,
+    declineReason: proposal.decline_reason,
     business: {
       name:    rateCard.business_name,
       address: rateCard.business_address,

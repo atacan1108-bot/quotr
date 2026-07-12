@@ -25,12 +25,12 @@ export default async function QuotesPage() {
   const { data: allProposals } = (jobs?.length ?? 0) > 0
     ? await supabase
         .from('proposals')
-        .select('job_id, computed_totals, opened_at, accepted_at')
+        .select('job_id, computed_totals, opened_at, accepted_at, declined_at')
         .in('job_id', (jobs ?? []).map(j => j.id))
         .order('created_at', { ascending: false })
     : { data: [] }
 
-  const latestProposalByJob = new Map<string, Pick<Proposal, 'computed_totals' | 'opened_at' | 'accepted_at'>>()
+  const latestProposalByJob = new Map<string, Pick<Proposal, 'computed_totals' | 'opened_at' | 'accepted_at' | 'declined_at'>>()
   for (const p of allProposals ?? []) {
     if (!latestProposalByJob.has(p.job_id)) latestProposalByJob.set(p.job_id, p)
   }
@@ -98,6 +98,8 @@ export default async function QuotesPage() {
                       )}
                       {proposal?.accepted_at ? (
                         <p className="text-xs text-teal-700 font-medium mt-1">{t('accepted', { date: formatDate(proposal.accepted_at, locale, 'short') })}</p>
+                      ) : proposal?.declined_at ? (
+                        <p className="text-xs text-red-600 font-medium mt-1">{t('declined', { date: formatDate(proposal.declined_at, locale, 'short') })}</p>
                       ) : proposal?.opened_at ? (
                         <p className="text-xs text-muted mt-1">{t('opened', { date: formatDate(proposal.opened_at, locale, 'short') })}</p>
                       ) : null}

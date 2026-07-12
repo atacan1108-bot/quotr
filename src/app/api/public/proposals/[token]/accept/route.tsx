@@ -10,13 +10,13 @@
  * step fails — those are follow-on effects, not the source of truth.
  */
 import { NextResponse } from 'next/server'
-import { Resend } from 'resend'
+import { headers } from 'next/headers'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getPublicProposalByToken, type PublicQuoteView } from '@/lib/publicProposal'
-import { formatEuro } from '@/lib/pricing'
 import { SignedQuotePDF } from '@/app/quote/[token]/SignedQuotePDF'
-import { pdfLabels, emailAcceptedSubjectLabel, emailAcceptedIntroLabel } from '@/lib/pdf/pdfLabels'
+import { pdfLabels } from '@/lib/pdf/pdfLabels'
+import { notifyContractor } from '@/lib/notifyContractor'
 import { DEFAULT_LOCALE } from '@/i18n/config'
 import type { Locale } from '@/i18n/config'
 
@@ -87,8 +87,10 @@ export async function POST(
   const acceptIp = forwardedFor?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || null
   const acceptUserAgent = req.headers.get('user-agent') || null
 
-  // Atomic accept: only succeeds for whichever request gets there first.
-  // `.select('id')` lets us tell whether THIS request won the race.
+  // Atomic accept: only succeeds for whichever request gets there first,
+  // AND only while the quote hasn't been declined in the meantime (a second
+  // guard against a concurrent accept/decline race landing on the same
+  // proposal — accept and decline are mutually exclusive).
   const { data: updatedRows, error: updateError } = await admin
     .from('proposals')
     .update({
@@ -100,6 +102,7 @@ export async function POST(
     })
     .eq('id', quote.proposalId)
     .is('accepted_at', null)
+    .is('declined_at', null)
     .select('id')
 
   if (updateError) {
@@ -109,7 +112,18 @@ export async function POST(
 
   const wonRace = (updatedRows?.length ?? 0) > 0
   if (!wonRace) {
-    // Someone else's click landed first in the last few milliseconds — still a success.
+    // Someone else's click landed first in the last few milliseconds — could
+    // be a duplicate accept (harmless, still a success) or a concurrent
+    // decline (the quote is no longer acceptable) — check which, rather
+    // than blindly reporting success either way.
+    const { data: freshProposal } = await admin
+      .from('proposals')
+      .select('declined_at')
+      .eq('id', quote.proposalId)
+      .maybeSingle()
+    if (freshProposal?.declined_at) {
+      return NextResponse.json({ error: l.noLongerAvailable }, { status: 409 })
+    }
     return NextResponse.json({ ok: true, businessName, signedPdfUrl: quote.signedPdfUrl })
   }
 
@@ -148,14 +162,23 @@ export async function POST(
   }
 
   // Best-effort notification — never let an email problem fail the accept.
+  // This is the ONE notification code path, shared with the decline route —
+  // see src/lib/notifyContractor.ts.
   try {
+    const headersList = await headers()
+    const host  = headersList.get('host') ?? 'localhost:3000'
+    const proto = host.includes('localhost') ? 'http' : 'https'
     await notifyContractor({
+      kind:        'accepted',
       ownerId:     proposalRow?.owner_id ?? null,
+      jobId:       proposalRow?.job_id ?? '',
       businessName,
       businessEmail: quote.business.email,
       clientName:  quote.clientName ?? signerName,
       jobTitle:    quote.jobTitle,
       total:       (proposalRow?.computed_totals as { total?: number } | null)?.total ?? quote.breakdown.total,
+      eventAt:     signedAt,
+      baseUrl:     `${proto}://${host}`,
       signedPdfUrl,
     })
   } catch (err) {
@@ -163,76 +186,4 @@ export async function POST(
   }
 
   return NextResponse.json({ ok: true, businessName, signedPdfUrl })
-}
-
-async function notifyContractor(opts: {
-  ownerId:        string | null
-  businessName:   string
-  businessEmail:  string | null
-  clientName:     string
-  jobTitle:       string
-  total:          number
-  signedPdfUrl:   string | null
-}) {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey || apiKey === 'PASTE_YOUR_RESEND_API_KEY_HERE') {
-    console.warn('accept: RESEND_API_KEY not set — skipping notification email')
-    return
-  }
-
-  // The contractor's own login email is the most reliable "notify them"
-  // address — falls back to their displayed business email if that lookup
-  // fails for some reason.
-  let toEmail = opts.businessEmail
-  // This email goes to the CONTRACTOR, so it follows THEIR app language
-  // (rate_cards.language) — independent of the quote's own language.
-  let contractorLocale: Locale = DEFAULT_LOCALE
-  if (opts.ownerId) {
-    const admin = createAdminClient()
-    try {
-      const { data } = await admin.auth.admin.getUserById(opts.ownerId)
-      toEmail = data.user?.email ?? toEmail
-    } catch (err) {
-      console.error('accept: could not look up contractor login email', err)
-    }
-    try {
-      const { data: rc } = await admin
-        .from('rate_cards')
-        .select('language')
-        .eq('owner_id', opts.ownerId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (rc?.language) contractorLocale = rc.language
-    } catch (err) {
-      console.error('accept: could not look up contractor language', err)
-    }
-  }
-  if (!toEmail) {
-    console.warn('accept: no contractor email available — skipping notification email')
-    return
-  }
-
-  const le = pdfLabels(contractorLocale)
-  const resend = new Resend(apiKey)
-  await resend.emails.send({
-    from:    'Quotr <onboarding@resend.dev>',
-    to:      toEmail,
-    subject: emailAcceptedSubjectLabel(contractorLocale, opts.clientName, formatEuro(opts.total)),
-    html: `
-      <p>${emailAcceptedIntroLabel(contractorLocale, escapeHtml(opts.clientName), escapeHtml(opts.jobTitle))}</p>
-      <p>${le.emailTotalLabel} <strong>${formatEuro(opts.total)}</strong></p>
-      ${opts.signedPdfUrl ? `<p><a href="${opts.signedPdfUrl}">${le.emailDownloadSignedPdf}</a></p>` : ''}
-      <p>— ${escapeHtml(opts.businessName)}</p>
-    `,
-  })
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }

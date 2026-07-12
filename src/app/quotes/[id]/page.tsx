@@ -108,6 +108,16 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               {(proposal as Proposal).signer_name && t('signedBy', { name: (proposal as Proposal).signer_name! })}
             </p>
           )}
+          {(proposal as Proposal | null)?.declined_at && (
+            <p className="text-xs font-medium text-red-600 mb-1">
+              {t('declined', { date: formatDate((proposal as Proposal).declined_at!, locale) })}
+              {(proposal as Proposal).decline_reason && (
+                <span className="block text-muted font-normal mt-0.5">
+                  {t('declineReason', { reason: (proposal as Proposal).decline_reason! })}
+                </span>
+              )}
+            </p>
+          )}
           {(proposal as Proposal | null)?.signed_pdf_url && (
             <a
               href={(proposal as Proposal).signed_pdf_url!}

@@ -19,6 +19,9 @@ interface InitialRateCard {
   branding:                 Branding | null
   template_html:            string | null
   prices_shown_excluding_vat:  boolean
+  notify_on_accept:         boolean
+  notify_on_decline:        boolean
+  notification_email:       string | null
 }
 
 interface Props {
@@ -69,6 +72,13 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
 
   // ── Recurring quote display preference ──────────────────────────
   const [pricesExVat, setPricesExVat] = useState(initialRateCard.prices_shown_excluding_vat)
+
+  // ── Notification preferences ─────────────────────────────────────
+  const [notifyOnAccept,  setNotifyOnAccept]  = useState(initialRateCard.notify_on_accept)
+  const [notifyOnDecline, setNotifyOnDecline] = useState(initialRateCard.notify_on_decline)
+  const [notificationEmail, setNotificationEmail] = useState(
+    initialRateCard.notification_email ?? initialRateCard.business_email ?? '',
+  )
 
   const initialBranding = initialRateCard.branding ?? EMPTY_BRANDING
   const [primaryColor, setPrimaryColor] = useState(initialBranding.primaryColor || '#0F766E')
@@ -150,6 +160,9 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
         terms_text:               termsText.trim() || null,
         branding,
         prices_shown_excluding_vat: pricesExVat,
+        notify_on_accept:         notifyOnAccept,
+        notify_on_decline:        notifyOnDecline,
+        notification_email:      notificationEmail.trim() || null,
       }
 
       if (rateCardId) {
@@ -404,6 +417,59 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
             />
           </span>
         </button>
+      </section>
+
+      {/* ── Notifications ────────────────────────────────────────────── */}
+      <section className="bg-white rounded-2xl border border-border p-5">
+        <h2 className="text-sm font-bold mb-1" style={{ color: ACCENT }}>{t('notifications')}</h2>
+        <p className="text-xs text-muted mb-4">{t('notificationsBody')}</p>
+
+        <div className="flex flex-col gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setNotifyOnAccept(v => !v)}
+            className="flex items-center justify-between h-12 px-3.5 rounded-xl border border-border bg-surface"
+          >
+            <span className="text-sm font-medium text-on-surface text-left">{t('notifyOnAccept')}</span>
+            <span
+              className="w-11 h-6 rounded-full relative transition shrink-0 ml-3"
+              style={{ backgroundColor: notifyOnAccept ? ACCENT : 'var(--color-border)' }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                style={{ transform: notifyOnAccept ? 'translateX(22px)' : 'translateX(2px)' }}
+              />
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setNotifyOnDecline(v => !v)}
+            className="flex items-center justify-between h-12 px-3.5 rounded-xl border border-border bg-surface"
+          >
+            <span className="text-sm font-medium text-on-surface text-left">{t('notifyOnDecline')}</span>
+            <span
+              className="w-11 h-6 rounded-full relative transition shrink-0 ml-3"
+              style={{ backgroundColor: notifyOnDecline ? ACCENT : 'var(--color-border)' }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                style={{ transform: notifyOnDecline ? 'translateX(22px)' : 'translateX(2px)' }}
+              />
+            </span>
+          </button>
+        </div>
+
+        <Field label={t('notificationEmail')}>
+          <input
+            type="email"
+            inputMode="email"
+            value={notificationEmail}
+            onChange={e => setNotificationEmail(e.target.value)}
+            placeholder={t('notificationEmailPlaceholder')}
+            className={inputClass}
+          />
+        </Field>
+        <p className="text-xs text-muted mt-1.5">{t('notificationEmailHint')}</p>
       </section>
 
       {/* ── Terms & conditions ─────────────────────────────────────────── */}

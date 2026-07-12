@@ -98,6 +98,14 @@ export interface RateCard {
   // The contractor's own app language (the "NL | EN" corner switch).
   // Independent of any single quote's language — see Job.language below.
   language: 'nl' | 'en'
+
+  // Contractor notification preferences — whether to email them when a
+  // customer accepts/declines a quote on the public share page, and where.
+  // notification_email null means "use business_email" (resolved at send
+  // time in src/lib/notifyContractor.ts, not persisted as a copy here).
+  notify_on_accept:   boolean
+  notify_on_decline:  boolean
+  notification_email: string | null
 }
 
 export type JobStatus = 'draft' | 'quoted' | 'sent' | 'accepted' | 'declined'
@@ -157,6 +165,14 @@ export interface Proposal {
   accept_ip:           string | null
   accept_user_agent:   string | null
   signed_pdf_url:      string | null
+  // Customer-declined-on-the-public-page tracking — mirrors the accept
+  // columns above. declined_at is null unless the CUSTOMER declined via
+  // /quote/[token]; a contractor manually marking a job "declined" from
+  // their own dashboard (JobStatusActions) does not set this.
+  declined_at:         string | null
+  decline_reason:      string | null
+  decline_ip:          string | null
+  decline_user_agent:  string | null
 }
 
 // ── Joined/enriched types (with related rows attached) ───────
@@ -239,6 +255,9 @@ export const DEFAULT_RATE_CARD: Omit<RateCard, 'id' | 'created_at' | 'owner_id'>
   template_html:           null,
   prices_shown_excluding_vat: false,
   language: 'nl',
+  notify_on_accept:   true,
+  notify_on_decline:  true,
+  notification_email: null,
 }
 
 export const DEFAULT_RECURRING_CONFIG: RecurringConfig = {
