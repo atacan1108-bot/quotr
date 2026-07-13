@@ -88,7 +88,23 @@ async function launchBrowser(): Promise<Browser> {
   })
 }
 
-export async function renderHtmlToPdf(html: string): Promise<Buffer> {
+export interface RenderHtmlToPdfOptions {
+  /**
+   * A complete HTML string used as Puppeteer's real, repeating page footer
+   * (via page.pdf's displayHeaderFooter/footerTemplate) — rendered fresh on
+   * EVERY physical PDF page by Chrome itself, using its own <span
+   * class="pageNumber">/<span class="totalPages"> placeholders, which is
+   * the only reliable way to pin a footer to the bottom of every page
+   * regardless of how the content actually paginates. Omit for a plain
+   * render with no footer (e.g. nothing to show).
+   */
+  footerTemplate?: string
+  /** Reserved bottom margin the footer needs — must be tall enough that
+   * page content never overlaps it. Ignored if footerTemplate is omitted. */
+  footerHeight?: string
+}
+
+export async function renderHtmlToPdf(html: string, options: RenderHtmlToPdfOptions = {}): Promise<Buffer> {
   let browser: Browser
   try {
     browser = await withTimeout(
@@ -113,7 +129,19 @@ export async function renderHtmlToPdf(html: string): Promise<Buffer> {
         'Rendering timed out — the template likely references a slow-loading or unreachable image, font, or external resource. Use embedded/inline images and fonts instead of remote URLs.',
       )
       const pdf = await withTimeout(
-        page.pdf({ format: 'A4', printBackground: true }),
+        page.pdf({
+          format: 'A4',
+          printBackground: true,
+          // No top/left/right margin — templates provide their own inner
+          // padding, and a banner meant to sit flush at the top/edges of
+          // the page needs a true 0 margin, not Chrome's own default.
+          // Bottom margin is reserved space for the repeating footer only
+          // when one is supplied; otherwise also 0.
+          margin: { top: '0px', right: '0px', bottom: options.footerTemplate ? (options.footerHeight ?? '70px') : '0px', left: '0px' },
+          displayHeaderFooter: !!options.footerTemplate,
+          headerTemplate: '<span></span>', // required by Puppeteer whenever displayHeaderFooter is true — kept empty, this template has no repeating header
+          footerTemplate: options.footerTemplate ?? '<span></span>',
+        }),
         PDF_TIMEOUT_MS,
         'Generating the PDF file itself timed out.',
       )

@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sanitizeTemplateHtml } from '@/lib/sanitizeTemplateHtml'
 import { fillTemplate } from '@/lib/htmlTemplate'
 import { renderHtmlToPdf } from '@/lib/pdf/renderHtmlPdf'
+import { buildFooterTemplate, FOOTER_HEIGHT } from '@/lib/pdf/footerTemplate'
 import { getSampleTemplateData, getSampleTemplateItems } from '@/lib/pdf/sampleTemplateData'
 import { LOCALES } from '@/i18n/config'
 import type { Locale } from '@/i18n/config'
@@ -46,8 +47,12 @@ export async function POST(req: Request) {
 
   try {
     const sanitizedHtml = sanitizeTemplateHtml(html)
-    const filledHtml = fillTemplate(sanitizedHtml, getSampleTemplateData(previewLocale), getSampleTemplateItems(previewLocale), body.isRecurring ?? false)
-    const pdf = await renderHtmlToPdf(filledHtml)
+    const sampleData = getSampleTemplateData(previewLocale)
+    const filledHtml = fillTemplate(sanitizedHtml, sampleData, getSampleTemplateItems(previewLocale), body.isRecurring ?? false)
+    const pdf = await renderHtmlToPdf(filledHtml, {
+      footerTemplate: buildFooterTemplate(sampleData, previewLocale),
+      footerHeight: FOOTER_HEIGHT,
+    })
     return new Response(new Uint8Array(pdf), {
       headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store' },
     })

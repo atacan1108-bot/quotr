@@ -15,7 +15,10 @@
     font-family: 'Helvetica Neue', Arial, sans-serif;
     color: #1C1C1E;
     margin: 0;
-    padding: 48px 52px;
+    /* No top padding — the header must sit flush at the very top of the
+       page, not float below a gap. Side/bottom padding still give the rest
+       of the content sensible margins. */
+    padding: 0 52px 24px;
     font-size: 13px;
   }
   .header {
@@ -26,6 +29,9 @@
     border-bottom: 3px solid #0F766E;
   }
   .header img { width: 56px; height: 56px; object-fit: contain; }
+  /* No logo uploaded yet — {{business_logo}} resolves to an empty src,
+     which would otherwise render as an empty/broken-image box. */
+  .header img[src=""] { display: none !important; }
   .header .biz-name { font-size: 20px; font-weight: 700; color: #0F766E; margin: 0; }
   .header .biz-meta { font-size: 11px; color: #7A7A7D; margin: 2px 0 0; }
 
@@ -121,10 +127,14 @@
     {{scope_text}}
   </div>
 
+  <!-- Business registration details (KvK/BTW/IBAN) and the page number are
+       NOT here — they're in the repeating page footer every PDF gets
+       automatically (see src/lib/pdf/footerTemplate.ts), so they show up
+       correctly on every page of a multi-page quote, not just wherever
+       this content happens to end. -->
   <div class="footer">
     <p>{{footer_text}}</p>
     <p>{{terms_text}}</p>
-    <p>KvK {{business_kvk}} · BTW {{business_btw}} · IBAN {{business_iban}}</p>
   </div>
 
 </body>

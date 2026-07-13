@@ -24,6 +24,7 @@ import { ProposalPDF } from '@/app/quotes/[id]/ProposalPDF'
 import { fillTemplate } from '@/lib/htmlTemplate'
 import { buildTemplateData } from '@/lib/pdf/buildTemplateData'
 import { renderHtmlToPdf } from '@/lib/pdf/renderHtmlPdf'
+import { buildFooterTemplate, FOOTER_HEIGHT } from '@/lib/pdf/footerTemplate'
 import { generateWording, WordingGenerationError } from '@/lib/generateWording'
 
 // Headless-Chromium cold start + render can take longer than Next.js/Vercel's
@@ -148,8 +149,14 @@ export async function POST(
         throw new Error('Token replacement produced empty HTML — the uploaded template may be malformed.')
       }
 
-      // Stage (e): launch headless Chromium and render to PDF.
-      buffer = await renderHtmlToPdf(filledHtml)
+      // Stage (e): launch headless Chromium and render to PDF. The footer
+      // (business info, KvK/BTW/IBAN, page numbers) is Puppeteer's own
+      // repeating page footer, not part of the template's HTML flow — see
+      // src/lib/pdf/footerTemplate.ts for why.
+      buffer = await renderHtmlToPdf(filledHtml, {
+        footerTemplate: buildFooterTemplate(templateData, data.job.language),
+        footerHeight: FOOTER_HEIGHT,
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.error('generate-pdf: custom template render failed', {
