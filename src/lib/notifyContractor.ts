@@ -161,12 +161,15 @@ export async function notifyContractor(opts: NotifyContractorOptions): Promise<v
   `
 
   const resend = new Resend(apiKey)
+  // Same sender identity as the "Send email" feature (src/lib/sendDocumentEmail.ts)
+  // — RESEND_FROM_EMAIL, falling back to Resend's own sandbox address if unset.
+  const fromAddress = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
   // The Resend SDK does NOT throw on an API-level rejection (bad key,
   // unverified domain, rate limit, ...) — it resolves with { error } and a
   // null error only on success. Check it explicitly, or a real failure
   // here would silently vanish instead of hitting the caller's catch block.
   const { error } = await resend.emails.send({
-    from:    'Quotr <onboarding@resend.dev>',
+    from:    `Quotr <${fromAddress}>`,
     to:      toEmail,
     subject,
     html,

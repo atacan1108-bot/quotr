@@ -206,7 +206,7 @@ export function escapeHtml(value: string): string {
  */
 const PARAGRAPH_TOKENS = new Set(['cover_note', 'scope_text'])
 
-function escapeHtmlParagraphs(value: string): string {
+export function escapeHtmlParagraphs(value: string): string {
   const paragraphs = value.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
   return paragraphs
     .map((p, i) => {

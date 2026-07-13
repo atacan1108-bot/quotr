@@ -190,6 +190,12 @@ export interface Proposal {
   decline_reason:      string | null
   decline_ip:          string | null
   decline_user_agent:  string | null
+  // When the contractor emailed the branded PDF to the client via the
+  // "Draft email"/"Send email" flow — see src/lib/sendDocumentEmail.ts.
+  // Independent of declined/accepted_at: a quote can be emailed more than
+  // once (a resend), so this always reflects the MOST RECENT send.
+  email_sent_at:       string | null
+  email_sent_to:       string | null
 }
 
 // ── Joined/enriched types (with related rows attached) ───────

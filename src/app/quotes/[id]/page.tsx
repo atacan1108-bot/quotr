@@ -14,7 +14,7 @@ import JobStatusActions from './JobStatusActions'
 import QuoteLanguageToggle from './QuoteLanguageToggle'
 import CopyLinkButton from './CopyLinkButton'
 import GenerateWordingSection from './GenerateWordingSection'
-import GeneratePdfSection from './GeneratePdfSection'
+import QuotePdfAndEmail from './QuotePdfAndEmail'
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -204,9 +204,12 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
         {/* Branded PDF — only once the quote has been priced */}
         {proposal && (
-          <GeneratePdfSection
+          <QuotePdfAndEmail
             jobId={id}
             initialPdfUrl={(proposal as Proposal).pdf_url}
+            locale={locale}
+            initialEmailSentAt={(proposal as Proposal).email_sent_at}
+            initialEmailSentTo={(proposal as Proposal).email_sent_to}
           />
         )}
 

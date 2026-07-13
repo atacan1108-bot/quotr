@@ -17,6 +17,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk'
 import type { Locale } from '@/i18n/config'
+import { containsPriceLeak } from '@/lib/priceLeakGuard'
 
 const MODEL = 'claude-sonnet-5'
 
@@ -96,20 +97,6 @@ const RESPONSE_SCHEMA = {
   required: ['scope_text', 'cover_note'],
   additionalProperties: false,
 } as const
-
-// Defense-in-depth: reject any response that looks like it contains a price,
-// a percentage (VAT/markup), or a currency figure, even though the system
-// prompt already forbids it.
-const PRICE_LEAK_PATTERNS: RegExp[] = [
-  /[€$£¥]\s?\d/,
-  /\d[\d.,]*\s?(EUR|USD|GBP)\b/i,
-  /\bVAT\b[^.]{0,20}?\d/i,
-  /\d+(\.\d+)?\s?%/,
-]
-
-function containsPriceLeak(text: string): boolean {
-  return PRICE_LEAK_PATTERNS.some(pattern => pattern.test(text))
-}
 
 function itemLine(item: WordingLineItemInput): string {
   const qty = item.type === 'fixed' ? '' : ` — quantity: ${item.quantity}${item.type === 'labour' ? ' hours' : ''}`

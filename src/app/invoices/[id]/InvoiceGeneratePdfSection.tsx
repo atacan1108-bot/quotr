@@ -6,11 +6,14 @@ import { useTranslations } from 'next-intl'
 interface Props {
   invoiceId: string
   initialPdfUrl: string | null
+  // Optional — lets a sibling component (EmailInvoiceSection) react to a
+  // freshly-generated PDF without waiting for a full page reload.
+  onGenerated?: (pdfUrl: string) => void
 }
 
 type Status = 'idle' | 'generating' | 'ready' | 'error'
 
-export default function InvoiceGeneratePdfSection({ invoiceId, initialPdfUrl }: Props) {
+export default function InvoiceGeneratePdfSection({ invoiceId, initialPdfUrl, onGenerated }: Props) {
   const t = useTranslations('generateInvoicePdfSection')
   const tErrors = useTranslations('errors')
   const [status, setStatus] = useState<Status>(initialPdfUrl ? 'ready' : 'idle')
@@ -29,8 +32,10 @@ export default function InvoiceGeneratePdfSection({ invoiceId, initialPdfUrl }: 
         throw new Error(t('sessionExpired'))
       }
       if (!res.ok || !data?.pdfUrl) throw new Error(data?.error || tErrors('somethingWentWrong'))
-      setPdfUrl(`${data.pdfUrl}?v=${Date.now()}`)
+      const bustedUrl = `${data.pdfUrl}?v=${Date.now()}`
+      setPdfUrl(bustedUrl)
       setStatus('ready')
+      onGenerated?.(bustedUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : tErrors('somethingWentWrong'))
       setStatus('error')

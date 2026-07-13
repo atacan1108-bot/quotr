@@ -108,6 +108,24 @@
     "sessionExpired": "Je sessie is mogelijk verlopen — ververs de pagina en probeer het opnieuw.",
     "fallbackNotice": "Je eigen template kon deze keer niet gebruikt worden, dus is het standaardontwerp gebruikt. Reden: {reason}"
   },
+  "emailQuoteSection": {
+    "title": "E-mail naar klant",
+    "idlePrompt": "Stel een verzendklare e-mail op naar je klant met de offerte-PDF als bijlage.",
+    "draftButton": "E-mail opstellen",
+    "draftingStatus": "Concept wordt geschreven…",
+    "tryAgain": "Opnieuw proberen",
+    "to": "Aan",
+    "redraft": "Opnieuw opstellen",
+    "invalidEmail": "Vul een geldig e-mailadres in.",
+    "ccSelf": "Stuur mij ook een kopie ({email})",
+    "subject": "Onderwerp",
+    "body": "Bericht",
+    "sending": "Verzenden…",
+    "sendButton": "E-mail verzenden",
+    "sentTo": "Verzonden naar {email}",
+    "sendAgain": "Opnieuw verzenden",
+    "sessionExpired": "Je sessie is mogelijk verlopen — ververs de pagina en probeer het opnieuw."
+  },
   "generatePdfApi": {
     "quoteNotFound": "Offerte niet gevonden.",
     "noProposalYet": "Deze offerte heeft nog geen opgeslagen voorstel.",
@@ -119,6 +137,13 @@
     "builtInRenderFailed": "Kon de PDF niet bouwen: {message}",
     "uploadFailed": "Kon de PDF niet uploaden naar opslag: {message}",
     "saveUrlFailed": "De PDF is gemaakt maar kon niet worden opgeslagen bij de offerte: {message}"
+  },
+  "emailApi": {
+    "noPdfYet": "Genereer eerst de PDF voordat je een e-mail opstelt.",
+    "invalidEmail": "Vul een geldig e-mailadres in.",
+    "missingSubjectOrBody": "Onderwerp en bericht mogen niet leeg zijn.",
+    "attachmentFetchFailed": "Kon de PDF niet ophalen om bij te voegen — probeer het opnieuw.",
+    "numberingFailed": "Kon het factuurnummer niet toewijzen of de PDF niet opnieuw opbouwen: {message}"
   },
   "convertToInvoiceApi": {
     "quoteNotFound": "Offerte niet gevonden.",
@@ -136,6 +161,24 @@
     "readySubtitle": "Met je eigen huisstijl, logo en prijzen.",
     "preview": "Bekijken",
     "download": "Downloaden",
+    "sessionExpired": "Je sessie is mogelijk verlopen — ververs de pagina en probeer het opnieuw."
+  },
+  "emailInvoiceSection": {
+    "title": "E-mail naar klant",
+    "idlePrompt": "Stel een verzendklare e-mail op naar je klant met de factuur-PDF als bijlage.",
+    "draftButton": "E-mail opstellen",
+    "draftingStatus": "Concept wordt geschreven…",
+    "tryAgain": "Opnieuw proberen",
+    "to": "Aan",
+    "redraft": "Opnieuw opstellen",
+    "invalidEmail": "Vul een geldig e-mailadres in.",
+    "ccSelf": "Stuur mij ook een kopie ({email})",
+    "subject": "Onderwerp",
+    "body": "Bericht",
+    "sending": "Verzenden…",
+    "sendButton": "E-mail verzenden",
+    "sentTo": "Verzonden naar {email}",
+    "sendAgain": "Opnieuw verzenden",
     "sessionExpired": "Je sessie is mogelijk verlopen — ververs de pagina en probeer het opnieuw."
   },
   "generateInvoicePdfApi": {

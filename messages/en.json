@@ -108,6 +108,24 @@
     "sessionExpired": "Your session may have expired — please refresh the page and try again.",
     "fallbackNotice": "Your custom template couldn't be used this time, so the standard design was used instead. Reason: {reason}"
   },
+  "emailQuoteSection": {
+    "title": "Email to client",
+    "idlePrompt": "Draft a ready-to-send email to your client with the quote PDF attached.",
+    "draftButton": "Draft email",
+    "draftingStatus": "Writing your draft…",
+    "tryAgain": "Try again",
+    "to": "To",
+    "redraft": "Redraft",
+    "invalidEmail": "Enter a valid email address.",
+    "ccSelf": "Also send me a copy ({email})",
+    "subject": "Subject",
+    "body": "Message",
+    "sending": "Sending…",
+    "sendButton": "Send email",
+    "sentTo": "Sent to {email}",
+    "sendAgain": "Send again",
+    "sessionExpired": "Your session may have expired — please refresh the page and try again."
+  },
   "generatePdfApi": {
     "quoteNotFound": "Quote not found.",
     "noProposalYet": "This quote doesn't have a saved proposal yet.",
@@ -119,6 +137,13 @@
     "builtInRenderFailed": "Could not build the PDF: {message}",
     "uploadFailed": "Could not upload the PDF to storage: {message}",
     "saveUrlFailed": "The PDF was created but could not be saved to the quote: {message}"
+  },
+  "emailApi": {
+    "noPdfYet": "Generate the PDF before drafting an email.",
+    "invalidEmail": "Please enter a valid email address.",
+    "missingSubjectOrBody": "Subject and body can't be empty.",
+    "attachmentFetchFailed": "Could not fetch the PDF to attach — please try again.",
+    "numberingFailed": "Could not assign the invoice number or rebuild the PDF: {message}"
   },
   "convertToInvoiceApi": {
     "quoteNotFound": "Quote not found.",
@@ -136,6 +161,24 @@
     "readySubtitle": "Branded, with your logo and pricing.",
     "preview": "Preview",
     "download": "Download",
+    "sessionExpired": "Your session may have expired — please refresh the page and try again."
+  },
+  "emailInvoiceSection": {
+    "title": "Email to client",
+    "idlePrompt": "Draft a ready-to-send email to your client with the invoice PDF attached.",
+    "draftButton": "Draft email",
+    "draftingStatus": "Writing your draft…",
+    "tryAgain": "Try again",
+    "to": "To",
+    "redraft": "Redraft",
+    "invalidEmail": "Enter a valid email address.",
+    "ccSelf": "Also send me a copy ({email})",
+    "subject": "Subject",
+    "body": "Message",
+    "sending": "Sending…",
+    "sendButton": "Send email",
+    "sentTo": "Sent to {email}",
+    "sendAgain": "Send again",
     "sessionExpired": "Your session may have expired — please refresh the page and try again."
   },
   "generateInvoicePdfApi": {

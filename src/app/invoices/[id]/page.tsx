@@ -8,7 +8,7 @@ import type { Invoice } from '@/lib/invoicing/types'
 import { formatDate } from '@/lib/formatDate'
 import type { Locale } from '@/i18n/config'
 import InvoiceStatusActions from './InvoiceStatusActions'
-import InvoiceGeneratePdfSection from './InvoiceGeneratePdfSection'
+import InvoicePdfAndEmail from './InvoicePdfAndEmail'
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -169,7 +169,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        <InvoiceGeneratePdfSection invoiceId={id} initialPdfUrl={invoice.pdf_url} />
+        <InvoicePdfAndEmail
+          invoiceId={id}
+          initialPdfUrl={invoice.pdf_url}
+          locale={locale}
+          initialEmailSentTo={invoice.email_sent_to}
+          initialSentAt={invoice.sent_at}
+        />
 
       </main>
 

@@ -6,11 +6,17 @@ import { useTranslations } from 'next-intl'
 interface Props {
   jobId: string
   initialPdfUrl: string | null
+  // Optional — lets a sibling component (EmailQuoteSection, which needs to
+  // know a PDF now exists) react without waiting for a full page reload.
+  // Server-rendered initialPdfUrl alone can't do this: it's captured at the
+  // page's last server render, before this component's own client-side
+  // generate() call ever happens.
+  onGenerated?: (pdfUrl: string) => void
 }
 
 type Status = 'idle' | 'generating' | 'ready' | 'error'
 
-export default function GeneratePdfSection({ jobId, initialPdfUrl }: Props) {
+export default function GeneratePdfSection({ jobId, initialPdfUrl, onGenerated }: Props) {
   const t = useTranslations('generatePdfSection')
   const tErrors = useTranslations('errors')
   const [status, setStatus] = useState<Status>(initialPdfUrl ? 'ready' : 'idle')
@@ -38,8 +44,10 @@ export default function GeneratePdfSection({ jobId, initialPdfUrl }: Props) {
       }
 
       // Cache-bust so a re-generated PDF doesn't show a stale cached version
-      setPdfUrl(`${data.pdfUrl}?v=${Date.now()}`)
+      const bustedUrl = `${data.pdfUrl}?v=${Date.now()}`
+      setPdfUrl(bustedUrl)
       setStatus('ready')
+      onGenerated?.(bustedUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : tErrors('somethingWentWrong'))
       setStatus('error')

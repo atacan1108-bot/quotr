@@ -54,6 +54,10 @@ export interface Invoice {
   paid_at: string | null
 
   pdf_url: string | null
+  // Recipient of the most recent "Send email" — see src/lib/sendDocumentEmail.ts.
+  // sent_at/status already exist and get set the moment the invoice number
+  // is assigned (see assign_invoice_number()), so only the address is new here.
+  email_sent_to: string | null
 }
 
 export type InvoiceWithJob = Invoice & {
