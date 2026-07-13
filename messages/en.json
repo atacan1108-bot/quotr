@@ -152,6 +152,8 @@
     "overdue": "Overdue"
   },
   "invoicesList": {
+    "title": "Invoices",
+    "newInvoice": "New Invoice",
     "outstanding": "Outstanding",
     "overdueLabel": "Overdue",
     "allInvoices": "All invoices",

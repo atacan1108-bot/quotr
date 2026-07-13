@@ -152,6 +152,8 @@
     "overdue": "Te laat"
   },
   "invoicesList": {
+    "title": "Facturen",
+    "newInvoice": "Nieuwe factuur",
     "outstanding": "Openstaand",
     "overdueLabel": "Te laat",
     "allInvoices": "Alle facturen",
