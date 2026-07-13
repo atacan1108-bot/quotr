@@ -158,6 +158,29 @@ export interface PdfLabels {
   emailViewInApp:        string // link text, "View in Quotr"
   emailTotalLabel:       string
   emailDownloadSignedPdf: string
+  // Invoice-only labels (src/lib/pdf/invoiceTemplate.ts, invoice PDF/DOCX,
+  // and the invoice list/detail UI). Additive — nothing above this line
+  // is touched, so quote rendering is unaffected.
+  invoice:               string // "Factuur" / "Invoice"
+  invoiceNumber:         string // "Factuurnummer" / "Invoice number"
+  invoiceDate:           string // "Factuurdatum" / "Invoice date"
+  dueDate:               string // "Vervaldatum" / "Due date"
+  paymentDetails:        string // "Betaalgegevens" / "Payment details"
+  iban:                  string // "IBAN" (same in both languages)
+  accountHolder:         string // "Ten name van" / "Account holder"
+  paymentReference:      string // "Kenmerk" / "Reference"
+  amountDue:             string // "Te betalen" / "Amount due"
+  vatShort:              string // "BTW" / "VAT" — short column-header form
+  vatBreakdownTitle:     string // "BTW-overzicht" / "VAT breakdown"
+  discountLabel:         string // "Korting" / "Discount"
+  reverseChargeNote:     string // "BTW verlegd naar de afnemer." / "VAT reverse-charged to the recipient."
+  paidStamp:             string // "BETAALD" / "PAID"
+  clientVatNumber:       string // "BTW-nummer klant" / "Client VAT number"
+  clientKvkNumber:       string // "KvK-nummer klant" / "Client KvK number"
+  statusDraft:           string
+  statusSent:            string
+  statusPaid:            string
+  statusOverdue:         string
 }
 
 const NL: PdfLabels = {
@@ -282,6 +305,26 @@ const NL: PdfLabels = {
   emailViewInApp:        'Bekijk in Quotr',
   emailTotalLabel:       'Totaal:',
   emailDownloadSignedPdf: 'Download de ondertekende PDF',
+  invoice:               'Factuur',
+  invoiceNumber:         'Factuurnummer',
+  invoiceDate:           'Factuurdatum',
+  dueDate:               'Vervaldatum',
+  paymentDetails:        'Betaalgegevens',
+  iban:                  'IBAN',
+  accountHolder:         'Ten name van',
+  paymentReference:      'Kenmerk',
+  amountDue:             'Te betalen',
+  vatShort:              'BTW',
+  vatBreakdownTitle:     'BTW-overzicht',
+  discountLabel:         'Korting',
+  reverseChargeNote:     'BTW verlegd naar de afnemer.',
+  paidStamp:             'BETAALD',
+  clientVatNumber:       'BTW-nummer klant',
+  clientKvkNumber:       'KvK-nummer klant',
+  statusDraft:           'Concept',
+  statusSent:            'Verzonden',
+  statusPaid:            'Betaald',
+  statusOverdue:         'Te laat',
 }
 
 const EN: PdfLabels = {
@@ -406,6 +449,26 @@ const EN: PdfLabels = {
   emailViewInApp:        'View in Quotr',
   emailTotalLabel:       'Total:',
   emailDownloadSignedPdf: 'Download the signed PDF',
+  invoice:               'Invoice',
+  invoiceNumber:         'Invoice number',
+  invoiceDate:           'Invoice date',
+  dueDate:               'Due date',
+  paymentDetails:        'Payment details',
+  iban:                  'IBAN',
+  accountHolder:         'Account holder',
+  paymentReference:      'Reference',
+  amountDue:             'Amount due',
+  vatShort:              'VAT',
+  vatBreakdownTitle:     'VAT breakdown',
+  discountLabel:         'Discount',
+  reverseChargeNote:     'VAT reverse-charged to the recipient.',
+  paidStamp:             'PAID',
+  clientVatNumber:       'Client VAT number',
+  clientKvkNumber:       'Client KvK number',
+  statusDraft:           'Draft',
+  statusSent:            'Sent',
+  statusPaid:            'Paid',
+  statusOverdue:         'Overdue',
 }
 
 const DICTIONARIES: Record<Locale, PdfLabels> = { nl: NL, en: EN }

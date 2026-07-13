@@ -24,6 +24,15 @@ const TAB_DEFS = [
     ),
   },
   {
+    href: '/invoices',
+    key: 'invoices' as const,
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 14.25h6m-6 3h6m-9.75.75V4.5a2.25 2.25 0 0 1 2.25-2.25h5.379a1.5 1.5 0 0 1 1.06.44l3.622 3.622a1.5 1.5 0 0 1 .44 1.06V18a2.25 2.25 0 0 1-2.25 2.25H8.25a2.25 2.25 0 0 1-2.25-2.25Zm4.5-10.5h3.75" />
+      </svg>
+    ),
+  },
+  {
     href: '/settings',
     key: 'settings' as const,
     icon: (
@@ -42,6 +51,7 @@ export default function AppNav() {
 
   function isActive(href: string) {
     if (href === '/quotes') return pathname === '/quotes' || (pathname.startsWith('/quotes/') && !pathname.startsWith('/quotes/new'))
+    if (href === '/invoices') return pathname === '/invoices' || (pathname.startsWith('/invoices/') && !pathname.startsWith('/invoices/new'))
     return pathname === href || pathname.startsWith(href + '/')
   }
 

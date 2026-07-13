@@ -22,6 +22,8 @@ interface InitialRateCard {
   notify_on_accept:         boolean
   notify_on_decline:        boolean
   notification_email:       string | null
+  invoice_next_sequence:      number
+  invoice_next_sequence_year: number | null
 }
 
 interface Props {
@@ -92,6 +94,12 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
   const [footerText,   setFooterText]   = useState(initialBranding.footerText ?? '')
   const [quoteNumberPrefix, setQuoteNumberPrefix] = useState(initialBranding.quoteNumberPrefix ?? '')
 
+  // ── Invoicing settings ────────────────────────────────────────────
+  const [paymentTermsDays,    setPaymentTermsDays]    = useState(String(initialBranding.paymentTermsDays ?? 30))
+  const [invoiceNumberPrefix, setInvoiceNumberPrefix] = useState(initialBranding.invoiceNumberPrefix ?? '')
+  const [accountHolderName,   setAccountHolderName]   = useState(initialBranding.accountHolderName ?? '')
+  const [invoiceFooterNote,   setInvoiceFooterNote]   = useState(initialBranding.invoiceFooterNote ?? '')
+
   const [errors, setErrors]           = useState<FieldErrors>({})
   const [logoUploading, setLogoUploading] = useState(false)
   const [saving, setSaving]           = useState(false)
@@ -136,6 +144,9 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
     setSaveError(null)
     try {
       const branding: Branding = {
+        // Preserve invoicing fields (added in a later settings section, not
+        // editable from this form yet) rather than nulling them out on every save.
+        ...initialBranding,
         primaryColor:      primaryColor || null,
         accentColor:       accentColor || null,
         fontFamily:        fontFamily.trim() || null,
@@ -146,6 +157,10 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
         iban:              iban.trim() || null,
         footerText:        footerText.trim() || null,
         quoteNumberPrefix: quoteNumberPrefix.trim() || null,
+        paymentTermsDays:    parseInt(paymentTermsDays, 10) || 30,
+        invoiceNumberPrefix: invoiceNumberPrefix.trim() || null,
+        accountHolderName:   accountHolderName.trim() || null,
+        invoiceFooterNote:   invoiceFooterNote.trim() || null,
       }
 
       const payload = {
@@ -356,6 +371,57 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
         </div>
       </section>
 
+      {/* ── Invoicing ────────────────────────────────────────────────── */}
+      <section className="bg-white rounded-2xl border border-border p-5">
+        <h2 className="text-sm font-bold mb-1" style={{ color: ACCENT }}>{t('invoicing')}</h2>
+        <p className="text-xs text-muted mb-4">{t('invoicingBody')}</p>
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t('paymentTermsDays')}>
+              <input
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                value={paymentTermsDays}
+                onChange={e => setPaymentTermsDays(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label={t('invoiceNumberPrefix')}>
+              <input
+                type="text"
+                value={invoiceNumberPrefix}
+                onChange={e => setInvoiceNumberPrefix(e.target.value)}
+                placeholder={t('invoiceNumberPrefixPlaceholder')}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+          <p className="text-xs text-muted">
+            {t('nextInvoiceNumberPreview', { number: nextInvoiceNumberPreview(invoiceNumberPrefix, initialRateCard) })}
+          </p>
+          <Field label={t('accountHolderName')}>
+            <input
+              type="text"
+              value={accountHolderName}
+              onChange={e => setAccountHolderName(e.target.value)}
+              placeholder={t('accountHolderNamePlaceholder')}
+              className={inputClass}
+            />
+          </Field>
+          <Field label={t('invoiceFooterNote')}>
+            <textarea
+              value={invoiceFooterNote}
+              onChange={e => setInvoiceFooterNote(e.target.value)}
+              rows={2}
+              placeholder={t('invoiceFooterNotePlaceholder')}
+              className={`${inputClass} resize-y`}
+            />
+          </Field>
+        </div>
+      </section>
+
       {/* ── Pricing ──────────────────────────────────────────────────── */}
       <section className="bg-white rounded-2xl border border-border p-5">
         <h2 className="text-sm font-bold mb-4" style={{ color: ACCENT }}>{t('pricing')}</h2>
@@ -523,6 +589,15 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
 }
 
 const inputClass = 'w-full h-12 rounded-xl border border-border bg-white px-3.5 text-base text-on-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition'
+
+/** Mirrors assign_invoice_number()'s own logic (see supabase-invoicing-setup.sql):
+ * the counter resets to 1 whenever the stored year doesn't match the
+ * invoice's year — for this live preview, "now". */
+function nextInvoiceNumberPreview(prefix: string, rc: Pick<InitialRateCard, 'invoice_next_sequence' | 'invoice_next_sequence_year'>): string {
+  const year = new Date().getFullYear()
+  const sequence = rc.invoice_next_sequence_year === year ? rc.invoice_next_sequence : 1
+  return `${prefix}${year}-${String(sequence).padStart(4, '0')}`
+}
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (

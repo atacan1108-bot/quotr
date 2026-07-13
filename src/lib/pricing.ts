@@ -361,6 +361,168 @@ export function calculateRecurringItemPeriods(
   })
 }
 
+// ─── Invoice pricing ──────────────────────────────────────────────────────────
+//
+// Invoices reuse the exact same integer-cents discipline as calculateProposal
+// above, but differ in three ways a quote never needs: each line can carry
+// its own VAT rate (quotes use one flat rate_cards.vat_percent for the whole
+// document), the whole invoice can have a discount, and the whole invoice can
+// be VAT-reverse-charged ("BTW verlegd" — B2B/EU, VAT becomes 0 and is stated
+// as a note instead of a breakdown). Per-line pricing intentionally does NOT
+// replicate calculateProposal's material markup step — by the time a number
+// reaches an invoice line, any markup has already been decided (either baked
+// into unit_cost by the contractor, or carried over from an already-priced
+// quote line at conversion time). Every non-text line is simply
+// quantity × unit_cost (hours × unit_cost for labour, flat unit_cost for a
+// day_rate line — mirroring calculateProposal's own special cases exactly),
+// which is also what makes the model generic across industries (hours, days,
+// pieces, m² — point 2 of the invoicing spec).
+
+/** A free-form description-only row, invoice-only — no cost, just text. */
+export type InvoiceItemType = ItemType | 'text'
+
+/** One line in an invoice. Structurally close to LineItem, plus a required
+ * per-line VAT rate. Not stored in jobs.line_items — invoices snapshot their
+ * own line_items column so a sent/paid invoice never silently changes. */
+export interface InvoiceLineItem {
+  label:      string
+  type:       InvoiceItemType
+  quantity:   number
+  unit_cost:  number
+  hours?:     number
+  rate_type?: RecurringRateType
+  /** VAT percent for this line, e.g. 21, 9, or 0. Ignored entirely when the
+   * invoice is reverse-charged. */
+  vat_rate:   number
+}
+
+export interface InvoiceVatBreakdownRow {
+  vat_rate:        number
+  taxable_amount:  number
+  vat_amount:      number
+}
+
+export interface InvoiceBreakdown {
+  items:             (PricedItem & { vat_rate: number })[]
+  subtotal:          number   // sum of line totals, before discount
+  discount_amount:   number   // resolved to an absolute euro amount, clamped to subtotal
+  taxable_subtotal:  number   // subtotal - discount_amount
+  /** One row per VAT rate actually present with a non-zero taxable base.
+   * Always empty when reverse_charge is true. */
+  vat_breakdown:     InvoiceVatBreakdownRow[]
+  vat_amount:        number   // sum of vat_breakdown; always 0 when reverse_charge is true
+  total:             number   // taxable_subtotal + vat_amount
+  reverse_charge:    boolean
+}
+
+export interface InvoiceCalculationOptions {
+  discountType?:  'amount' | 'percent'
+  discountValue?: number
+  reverseCharge?: boolean
+}
+
+/** Prices a single invoice line — same cents discipline as calculateProposal,
+ * without the material-markup step (see file-level comment above). */
+function priceInvoiceLine(raw: InvoiceLineItem): PricedItem & { vat_rate: number } {
+  const label     = raw.label ?? ''
+  const type      = raw.type  ?? 'fixed'
+  const quantity  = safeNum(raw.quantity, 0)
+  const vatRate   = safeNum(raw.vat_rate, 0)
+
+  if (type === 'text') {
+    return { label, type: 'fixed', quantity: 0, unit_cost: 0, base_cost: 0, markup_amount: 0, line_total: 0, vat_rate: vatRate }
+  }
+
+  const unitCostCents = toCents(safeNum(raw.unit_cost, 0))
+  let lineTotalCents: number
+  if (type === 'labour') {
+    const hours = safeNum(raw.hours ?? quantity, 0)
+    lineTotalCents = Math.round(hours * unitCostCents)
+  } else if (raw.rate_type === 'day_rate') {
+    lineTotalCents = unitCostCents
+  } else {
+    lineTotalCents = Math.round(quantity * unitCostCents)
+  }
+
+  return {
+    label,
+    type: type as ItemType,
+    rate_type:     raw.rate_type,
+    quantity,
+    unit_cost:     fromCents(unitCostCents),
+    base_cost:     fromCents(lineTotalCents),
+    markup_amount: 0,
+    line_total:    fromCents(lineTotalCents),
+    vat_rate:      vatRate,
+  }
+}
+
+/**
+ * calculateInvoice — the invoice equivalent of calculateProposal. Supports
+ * per-line VAT rates, a whole-invoice discount (amount or percent, applied
+ * proportionally across VAT-rate groups so the breakdown stays correct), and
+ * a whole-invoice reverse-charge mode.
+ */
+export function calculateInvoice(
+  lineItems: InvoiceLineItem[],
+  options:   InvoiceCalculationOptions = {},
+): InvoiceBreakdown {
+  const reverseCharge = options.reverseCharge ?? false
+  const pricedItems = (lineItems ?? []).map(priceInvoiceLine)
+
+  const subtotalCents = pricedItems.reduce((sum, item) => sum + toCents(item.line_total), 0)
+
+  let discountCents = 0
+  if (options.discountType === 'percent') {
+    discountCents = Math.round(subtotalCents * safeNum(options.discountValue, 0) / 100)
+  } else if (options.discountType === 'amount') {
+    discountCents = toCents(safeNum(options.discountValue, 0))
+  }
+  discountCents = Math.min(Math.max(discountCents, 0), subtotalCents)
+
+  // Group by VAT rate, then spread the discount across groups by each
+  // group's share of the subtotal — the last group absorbs any rounding
+  // remainder so the distributed discount always sums back to discountCents.
+  const groupCentsByRate = new Map<number, number>()
+  for (const item of pricedItems) {
+    const cents = toCents(item.line_total)
+    groupCentsByRate.set(item.vat_rate, (groupCentsByRate.get(item.vat_rate) ?? 0) + cents)
+  }
+  const rates = [...groupCentsByRate.keys()]
+
+  const vatBreakdown: InvoiceVatBreakdownRow[] = []
+  let vatCentsTotal      = 0
+  let taxableCentsTotal  = 0
+  let distributedDiscount = 0
+  rates.forEach((rate, i) => {
+    const groupCents = groupCentsByRate.get(rate)!
+    const groupDiscountCents = i === rates.length - 1
+      ? discountCents - distributedDiscount
+      : (subtotalCents > 0 ? Math.round(discountCents * groupCents / subtotalCents) : 0)
+    distributedDiscount += groupDiscountCents
+    const taxableCents = groupCents - groupDiscountCents
+    taxableCentsTotal += taxableCents
+    if (!reverseCharge) {
+      const vatCents = Math.round(taxableCents * rate / 100)
+      vatCentsTotal += vatCents
+      if (taxableCents !== 0) {
+        vatBreakdown.push({ vat_rate: rate, taxable_amount: fromCents(taxableCents), vat_amount: fromCents(vatCents) })
+      }
+    }
+  })
+
+  return {
+    items:            pricedItems,
+    subtotal:         fromCents(subtotalCents),
+    discount_amount:  fromCents(discountCents),
+    taxable_subtotal: fromCents(taxableCentsTotal),
+    vat_breakdown:    vatBreakdown.sort((a, b) => b.vat_rate - a.vat_rate),
+    vat_amount:       fromCents(vatCentsTotal),
+    total:            fromCents(taxableCentsTotal + vatCentsTotal),
+    reverse_charge:   reverseCharge,
+  }
+}
+
 // ─── Convenience helpers (exported for use in the UI) ────────────────────────
 
 /**

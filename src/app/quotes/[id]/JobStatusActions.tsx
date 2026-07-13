@@ -30,6 +30,7 @@ export default function JobStatusActions({
   const t = useTranslations('jobStatusActions')
   const [loading,     setLoading]     = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [converting,  setConverting]  = useState(false)
 
   const next = ADVANCE[currentStatus]
   const advanceLabelKey = ADVANCE_LABEL_KEYS[currentStatus]
@@ -39,6 +40,19 @@ export default function JobStatusActions({
     await supabase.from('jobs').update({ status }).eq('id', jobId)
     router.refresh()
     setLoading(false)
+  }
+
+  async function convertToInvoice() {
+    setConverting(true)
+    try {
+      const res = await fetch(`/api/quote/${jobId}/convert-to-invoice`, { method: 'POST' })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? 'Unknown error')
+      router.push(`/invoices/${body.invoiceId}`)
+    } catch (err) {
+      alert(t('convertFailed', { message: (err as Error).message }))
+      setConverting(false)
+    }
   }
 
   async function downloadPdf() {
@@ -74,6 +88,17 @@ export default function JobStatusActions({
             className="w-full h-12 rounded-xl bg-teal-500 text-white font-semibold text-sm hover:bg-teal-700 active:bg-teal-700 active:scale-[0.98] transition disabled:opacity-60"
           >
             {loading ? t('updating') : t(advanceLabelKey)}
+          </button>
+        )}
+
+        {/* Convert to invoice — only once the customer has accepted */}
+        {currentStatus === 'accepted' && (
+          <button
+            onClick={convertToInvoice}
+            disabled={converting}
+            className="w-full h-12 rounded-xl bg-teal-500 text-white font-semibold text-sm hover:bg-teal-700 active:bg-teal-700 active:scale-[0.98] transition disabled:opacity-60"
+          >
+            {converting ? t('converting') : t('convertToInvoice')}
           </button>
         )}
 

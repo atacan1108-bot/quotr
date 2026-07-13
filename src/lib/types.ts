@@ -65,12 +65,23 @@ export interface Branding {
   iban:             string | null
   footerText:       string | null  // short tagline, e.g. "Business Name · City" — distinct from terms_text
   quoteNumberPrefix: string | null // e.g. "2026-" — stored for future use, not yet applied to numbering
+
+  // Invoicing settings — see src/lib/invoicing/types.ts. Kept in this same
+  // JSON blob rather than new ALTER TABLEs, following the precedent set by
+  // kvk/btw/iban/quoteNumberPrefix above. The atomic invoice-numbering
+  // counter itself (invoice_next_sequence / invoice_next_sequence_year)
+  // lives in real rate_cards columns, not here — see supabase-invoicing-setup.sql.
+  invoiceNumberPrefix: string | null  // e.g. "" or "INV-" — combined with the year, e.g. "2026-0001"
+  paymentTermsDays:    number | null  // default due-in-days for new invoices; null → 30
+  invoiceFooterNote:   string | null  // e.g. "Gelieve te betalen binnen 30 dagen o.v.v. factuurnummer"
+  accountHolderName:   string | null  // bank account holder name, if different from business_name
 }
 
 export const EMPTY_BRANDING: Branding = {
   primaryColor: null, accentColor: null, fontFamily: null,
   phone: null, website: null, kvk: null, btw: null, iban: null,
   footerText: null, quoteNumberPrefix: null,
+  invoiceNumberPrefix: null, paymentTermsDays: null, invoiceFooterNote: null, accountHolderName: null,
 }
 
 export interface RateCard {
@@ -106,6 +117,12 @@ export interface RateCard {
   notify_on_accept:   boolean
   notify_on_decline:  boolean
   notification_email: string | null
+
+  // Atomic invoice-numbering counter — real columns (not branding jsonb)
+  // because assign_invoice_number() needs to lock and increment them
+  // reliably. See supabase-invoicing-setup.sql and src/lib/invoicing/types.ts.
+  invoice_next_sequence:      number
+  invoice_next_sequence_year: number | null
 }
 
 export type JobStatus = 'draft' | 'quoted' | 'sent' | 'accepted' | 'declined'
@@ -258,6 +275,8 @@ export const DEFAULT_RATE_CARD: Omit<RateCard, 'id' | 'created_at' | 'owner_id'>
   notify_on_accept:   true,
   notify_on_decline:  true,
   notification_email: null,
+  invoice_next_sequence:      1,
+  invoice_next_sequence_year: null,
 }
 
 export const DEFAULT_RECURRING_CONFIG: RecurringConfig = {
