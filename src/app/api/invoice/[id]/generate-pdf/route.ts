@@ -15,6 +15,9 @@ import { buildInvoiceTemplateData } from '@/lib/pdf/invoiceTemplateData'
 import { fillInvoiceTemplate, buildInvoiceFooterTemplate, INVOICE_FOOTER_HEIGHT } from '@/lib/pdf/invoiceTemplate'
 import { renderHtmlToPdf } from '@/lib/pdf/renderHtmlPdf'
 
+// Headless Chromium needs the Node.js runtime (never Edge) — explicit here
+// even though it's already the default, so it can't silently regress.
+export const runtime = 'nodejs'
 export const maxDuration = 60
 
 /** Thrown by generateAndSaveInvoicePdf with a plain, technical message —

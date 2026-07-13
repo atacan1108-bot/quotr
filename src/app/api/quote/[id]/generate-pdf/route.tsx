@@ -27,6 +27,11 @@ import { renderHtmlToPdf } from '@/lib/pdf/renderHtmlPdf'
 import { buildFooterTemplate, FOOTER_HEIGHT } from '@/lib/pdf/footerTemplate'
 import { generateWording, WordingGenerationError } from '@/lib/generateWording'
 
+// Headless Chromium can only run on the Node.js runtime, never Edge —
+// explicit here even though it's already the default, so it can't
+// silently flip if the route ever gets an `export const runtime = 'edge'`
+// added elsewhere by mistake.
+export const runtime = 'nodejs'
 // Headless-Chromium cold start + render can take longer than Next.js/Vercel's
 // default function timeout, especially on a cold serverless invocation —
 // this is a Vercel-respected route-segment config, not just documentation.

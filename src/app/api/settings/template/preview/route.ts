@@ -18,6 +18,9 @@ import type { Locale } from '@/i18n/config'
 
 const MAX_CHARS = 2 * 1024 * 1024
 
+// Headless Chromium needs the Node.js runtime (never Edge) — explicit here
+// even though it's already the default, so it can't silently regress.
+export const runtime = 'nodejs'
 export const maxDuration = 60
 
 export async function POST(req: Request) {

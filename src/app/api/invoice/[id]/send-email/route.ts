@@ -17,6 +17,13 @@ import { pdfLabels } from '@/lib/pdf/pdfLabels'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+// A still-draft invoice's send can trigger a full headless-Chromium PDF
+// rebuild (see generateAndSaveInvoicePdf below) — needs the same Node
+// runtime + generous timeout as the PDF-generation routes themselves, not
+// the platform's short default.
+export const runtime = 'nodejs'
+export const maxDuration = 60
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },

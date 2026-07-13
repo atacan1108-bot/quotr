@@ -48,6 +48,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string)
 
 function describeLaunchError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
+  // The specific, known failure when @sparticuz/chromium's binary wasn't
+  // deployed alongside this particular route (a build/deployment-config
+  // problem, not a transient one — see next.config.ts's
+  // outputFileTracingIncludes, which needs an entry per route that can
+  // launch Chromium). Distinguished from other launch failures because
+  // retrying will never help here; only a redeploy with the correct config
+  // will. Detected on Sparticuz's own wording ("input directory ... does
+  // not exist", "you must externalize") rather than a fragile exact match.
+  if (/input directory .* does not exist/i.test(msg) || /externalize/i.test(msg)) {
+    return 'The PDF engine\'s Chromium binary was not included in this deployment (a build configuration issue, not something retrying will fix) — this needs to be corrected in the app\'s deployment settings, not by the person using the app.'
+  }
   if (msg.includes('ENOENT') || msg.toLowerCase().includes('failed to launch')) {
     return 'Could not start the PDF engine (headless Chrome) in this environment — it may not be installed or reachable here.'
   }
