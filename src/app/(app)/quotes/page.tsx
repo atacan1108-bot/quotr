@@ -43,6 +43,26 @@ export default async function QuotesPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 pt-6">
+      {/* Header — title + primary "New Quote" action (desktop sidebar and
+          mobile bottom nav no longer carry a New Quote item; this button,
+          plus the mobile-only FAB below, are the only entry points now).
+          On mobile there's no dedicated top bar (unlike desktop's own
+          header, which already reserves space for it), so this row needs
+          its own top margin to clear the fixed language-switcher pill
+          pinned to the top-right of the viewport. */}
+      <div className="flex items-center justify-between mb-6 mt-12 md:mt-0">
+        <h1 className="text-lg font-semibold text-on-surface">{t('title')}</h1>
+        <Link
+          href="/quotes/new"
+          className="h-11 px-4 inline-flex items-center gap-1.5 rounded-xl bg-teal-500 text-white text-sm font-semibold hover:bg-teal-700 active:bg-teal-700 active:scale-[0.98] transition"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          {t('newQuote')}
+        </Link>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="bg-white rounded-2xl border border-border p-4">
@@ -112,6 +132,19 @@ export default async function QuotesPage() {
           })}
         </div>
       )}
+
+      {/* Mobile-only floating action button — pinned above the bottom nav
+          bar (which is 64px tall) so New Quote stays a one-thumb reach. */}
+      <Link
+        href="/quotes/new"
+        aria-label={t('newQuote')}
+        className="md:hidden fixed z-30 flex items-center justify-center w-14 h-14 rounded-full bg-teal-500 text-white shadow-lg active:bg-teal-700 active:scale-95 transition"
+        style={{ right: '16px', bottom: 'calc(64px + env(safe-area-inset-bottom) + 16px)' }}
+      >
+        <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      </Link>
     </div>
   )
 }

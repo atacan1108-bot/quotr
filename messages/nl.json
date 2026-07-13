@@ -9,7 +9,6 @@
   },
   "nav": {
     "quotes": "Offertes",
-    "newQuote": "Nieuwe offerte",
     "invoices": "Facturen",
     "settings": "Instellingen",
     "logout": "Uitloggen"
@@ -26,6 +25,8 @@
     "declined": "Afgewezen"
   },
   "quotesList": {
+    "title": "Offertes",
+    "newQuote": "Nieuwe offerte",
     "totalJobs": "Totaal aantal klussen",
     "acceptedRevenue": "Geaccepteerde omzet",
     "allQuotes": "Alle offertes",

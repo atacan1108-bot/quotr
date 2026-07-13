@@ -9,7 +9,6 @@
   },
   "nav": {
     "quotes": "Quotes",
-    "newQuote": "New Quote",
     "invoices": "Invoices",
     "settings": "Settings",
     "logout": "Log out"
@@ -26,6 +25,8 @@
     "declined": "Declined"
   },
   "quotesList": {
+    "title": "Quotes",
+    "newQuote": "New Quote",
     "totalJobs": "Total jobs",
     "acceptedRevenue": "Accepted revenue",
     "allQuotes": "All quotes",

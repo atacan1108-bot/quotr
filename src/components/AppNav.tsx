@@ -15,15 +15,6 @@ const TAB_DEFS = [
     ),
   },
   {
-    href: '/quotes/new',
-    key: 'newQuote' as const,
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-      </svg>
-    ),
-  },
-  {
     href: '/invoices',
     key: 'invoices' as const,
     icon: (
@@ -50,7 +41,7 @@ export default function AppNav() {
   const tabs = TAB_DEFS.map(tab => ({ ...tab, label: t(tab.key) }))
 
   function isActive(href: string) {
-    if (href === '/quotes') return pathname === '/quotes' || (pathname.startsWith('/quotes/') && !pathname.startsWith('/quotes/new'))
+    if (href === '/quotes') return pathname === '/quotes' || pathname.startsWith('/quotes/')
     if (href === '/invoices') return pathname === '/invoices' || (pathname.startsWith('/invoices/') && !pathname.startsWith('/invoices/new'))
     return pathname === href || pathname.startsWith(href + '/')
   }
