@@ -37,8 +37,21 @@ export class SendDocumentEmailError extends Error {}
 
 export async function sendDocumentEmail(opts: SendDocumentEmailOptions): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY
+  // Presence-only diagnostic — never logs the key itself, just whether one
+  // was loaded and how long it is, so a misconfigured/stale env can be
+  // confirmed from server logs alone (env vars only load at server start,
+  // so a key added to .env.local after the dev server was already running
+  // won't show up here until the server restarts).
+  console.log('sendDocumentEmail: RESEND_API_KEY present =', !!apiKey, apiKey ? `(length ${apiKey.length})` : '(not set)')
   if (!apiKey || apiKey === 'PASTE_YOUR_RESEND_API_KEY_HERE') {
     throw new SendDocumentEmailError('Email sending isn\'t set up yet — add RESEND_API_KEY in .env.local.')
+  }
+  // Every real Resend key starts with "re_" (confirmed against Resend's
+  // current docs) — catching a malformed value here, before ever calling
+  // Resend, gives a specific "the key itself looks wrong" message instead
+  // of a generic API rejection that's easy to confuse with "not set up".
+  if (!apiKey.startsWith('re_')) {
+    throw new SendDocumentEmailError('The RESEND_API_KEY in .env.local doesn\'t look like a real Resend key (a real one always starts with "re_") — re-copy it from resend.com/api-keys and paste it in fresh, then restart the server.')
   }
 
   const fromAddress = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_ADDRESS
@@ -74,6 +87,14 @@ export async function sendDocumentEmail(opts: SendDocumentEmailOptions): Promise
  * generic-but-still-specific message for anything else Resend rejects. */
 function describeResendError(error: { name?: string; message?: string }, fromAddress: string): string {
   const message = error.message ?? ''
+  // Resend's own documented error for a well-formed but wrong/revoked key
+  // (name: "invalid_api_key", HTTP 403, message "API key is invalid.") —
+  // distinguished from "not set up" (no key at all) and from the
+  // domain-verification case below, so the fix a person needs to make is
+  // never ambiguous.
+  if (error.name === 'invalid_api_key' || /api key is invalid/i.test(message)) {
+    return 'The RESEND_API_KEY in .env.local was loaded, but Resend says it\'s not a valid key — it may have been revoked or mistyped. Get a fresh key at resend.com/api-keys, paste it into .env.local, then restart the server.'
+  }
   if (/only send testing emails to your own email address/i.test(message) || /verify a domain/i.test(message)) {
     return `This email address (${fromAddress}) isn't verified for sending to real clients yet — Resend only allows sending to your own account email until a sending domain is verified at resend.com/domains. See the setup notes for exactly what to add.`
   }
