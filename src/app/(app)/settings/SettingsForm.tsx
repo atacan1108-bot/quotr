@@ -24,6 +24,10 @@ interface InitialRateCard {
   notification_email:       string | null
   invoice_next_sequence:      number
   invoice_next_sequence_year: number | null
+  reminders_enabled:          boolean
+  reminder_before_due_days:   number
+  reminder_overdue_days_1:    number
+  reminder_overdue_days_2:    number
 }
 
 interface Props {
@@ -35,6 +39,7 @@ interface FieldErrors {
   labourRate?:    string
   markupPercent?: string
   vatPercent?:    string
+  reminderSchedule?: string
 }
 
 // Teal accent used specifically for this screen's headers/save button.
@@ -42,7 +47,11 @@ interface FieldErrors {
 // the exact brand hex used in the PDF and public share page.)
 const ACCENT = '#0F766E'
 
-function validate(t: ReturnType<typeof useTranslations<'settings'>>, labourRate: number, markupPercent: number, vatPercent: number): FieldErrors {
+function validate(
+  t: ReturnType<typeof useTranslations<'settings'>>,
+  labourRate: number, markupPercent: number, vatPercent: number,
+  reminderBeforeDue: number, reminderOverdue1: number, reminderOverdue2: number,
+): FieldErrors {
   const errors: FieldErrors = {}
   if (!Number.isFinite(labourRate) || labourRate < 0) {
     errors.labourRate = t('labourRateError')
@@ -52,6 +61,16 @@ function validate(t: ReturnType<typeof useTranslations<'settings'>>, labourRate:
   }
   if (!Number.isFinite(vatPercent) || vatPercent < 0 || vatPercent > 100) {
     errors.vatPercent = t('vatError')
+  }
+  const daysValid = [reminderBeforeDue, reminderOverdue1, reminderOverdue2].every(n => Number.isFinite(n) && n >= 0)
+  if (!daysValid) {
+    errors.reminderSchedule = t('reminderScheduleError')
+  } else if (reminderOverdue1 >= reminderOverdue2) {
+    // Escalation must actually escalate — otherwise a contractor could set
+    // both overdue stages to fire the same day (or backwards), which the
+    // cron's most-severe-first stage selection would silently collapse
+    // into always sending only the later one, never the earlier.
+    errors.reminderSchedule = t('reminderScheduleOrderError')
   }
   return errors
 }
@@ -100,6 +119,12 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
   const [accountHolderName,   setAccountHolderName]   = useState(initialBranding.accountHolderName ?? '')
   const [invoiceFooterNote,   setInvoiceFooterNote]   = useState(initialBranding.invoiceFooterNote ?? '')
 
+  // ── Payment reminders (src/app/api/cron/invoice-reminders) ─────────
+  const [remindersEnabled,     setRemindersEnabled]     = useState(initialRateCard.reminders_enabled)
+  const [reminderBeforeDueStr, setReminderBeforeDueStr] = useState(String(initialRateCard.reminder_before_due_days))
+  const [reminderOverdue1Str,  setReminderOverdue1Str]  = useState(String(initialRateCard.reminder_overdue_days_1))
+  const [reminderOverdue2Str,  setReminderOverdue2Str]  = useState(String(initialRateCard.reminder_overdue_days_2))
+
   const [errors, setErrors]           = useState<FieldErrors>({})
   const [logoUploading, setLogoUploading] = useState(false)
   const [saving, setSaving]           = useState(false)
@@ -135,8 +160,11 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
     const labourRate     = parseFloat(labourRateStr)
     const markupPercent  = parseFloat(markupStr)
     const vatPercent     = parseFloat(vatStr)
+    const reminderBeforeDue = parseInt(reminderBeforeDueStr, 10)
+    const reminderOverdue1  = parseInt(reminderOverdue1Str, 10)
+    const reminderOverdue2  = parseInt(reminderOverdue2Str, 10)
 
-    const validationErrors = validate(t, labourRate, markupPercent, vatPercent)
+    const validationErrors = validate(t, labourRate, markupPercent, vatPercent, reminderBeforeDue, reminderOverdue1, reminderOverdue2)
     setErrors(validationErrors)
     if (Object.keys(validationErrors).length > 0) return
 
@@ -178,6 +206,10 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
         notify_on_accept:         notifyOnAccept,
         notify_on_decline:        notifyOnDecline,
         notification_email:      notificationEmail.trim() || null,
+        reminders_enabled:        remindersEnabled,
+        reminder_before_due_days: reminderBeforeDue,
+        reminder_overdue_days_1:  reminderOverdue1,
+        reminder_overdue_days_2:  reminderOverdue2,
       }
 
       if (rateCardId) {
@@ -419,6 +451,68 @@ export default function SettingsForm({ ownerId, initialRateCard }: Props) {
               className={`${inputClass} resize-y`}
             />
           </Field>
+        </div>
+      </section>
+
+      {/* ── Payment reminders ───────────────────────────────────────── */}
+      <section className="bg-white rounded-2xl border border-border p-5">
+        <h2 className="text-sm font-bold mb-1" style={{ color: ACCENT }}>{t('remindersTitle')}</h2>
+        <p className="text-xs text-muted mb-4">{t('remindersBody')}</p>
+
+        <button
+          type="button"
+          onClick={() => setRemindersEnabled(v => !v)}
+          className="w-full flex items-center justify-between h-12 px-3.5 rounded-xl border border-border bg-surface mb-4"
+        >
+          <span className="text-sm font-medium text-on-surface text-left">{t('remindersEnabled')}</span>
+          <span
+            className="w-11 h-6 rounded-full relative transition shrink-0 ml-3"
+            style={{ backgroundColor: remindersEnabled ? ACCENT : 'var(--color-border)' }}
+          >
+            <span
+              className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+              style={{ transform: remindersEnabled ? 'translateX(22px)' : 'translateX(2px)' }}
+            />
+          </span>
+        </button>
+
+        <div className={`flex flex-col gap-3 ${remindersEnabled ? '' : 'opacity-50 pointer-events-none'}`}>
+          <Field label={t('reminderBeforeDueDays')}>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step="1"
+              value={reminderBeforeDueStr}
+              onChange={e => setReminderBeforeDueStr(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t('reminderOverdueDays1')}>
+              <input
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                value={reminderOverdue1Str}
+                onChange={e => setReminderOverdue1Str(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label={t('reminderOverdueDays2')}>
+              <input
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                value={reminderOverdue2Str}
+                onChange={e => setReminderOverdue2Str(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+          {errors.reminderSchedule && <p className="text-xs text-red-600">{errors.reminderSchedule}</p>}
         </div>
       </section>
 

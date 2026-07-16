@@ -10,6 +10,7 @@
   "nav": {
     "quotes": "Offertes",
     "invoices": "Facturen",
+    "cashflow": "Overzicht",
     "settings": "Instellingen",
     "logout": "Uitloggen"
   },
@@ -179,7 +180,8 @@
     "sendButton": "E-mail verzenden",
     "sentTo": "Verzonden naar {email}",
     "sendAgain": "Opnieuw verzenden",
-    "sessionExpired": "Je sessie is mogelijk verlopen — ververs de pagina en probeer het opnieuw."
+    "sessionExpired": "Je sessie is mogelijk verlopen — ververs de pagina en probeer het opnieuw.",
+    "paymentLinkWarning": "E-mail verzonden, maar de \"Betaal nu\"-link kon niet worden aangemaakt: {message}"
   },
   "generateInvoicePdfApi": {
     "invoiceNotFound": "Factuur niet gevonden.",
@@ -206,6 +208,26 @@
     "dueDate": "Vervalt {date}",
     "notSentYet": "Nog niet verzonden"
   },
+  "cashflow": {
+    "title": "Overzicht",
+    "previousMonth": "Vorige maand",
+    "nextMonth": "Volgende maand",
+    "backToThisMonth": "Naar deze maand",
+    "headlineLabel": "Je krijgt nog tegoed",
+    "headline": "{amount} van {count} facturen",
+    "invoiced": "Gefactureerd",
+    "outstanding": "Openstaand",
+    "paid": "Betaald",
+    "overdue": "Te laat",
+    "monthInvoicesTitle": "Facturen in {month}",
+    "noInvoicesThisMonthTitle": "Geen facturen deze maand",
+    "noInvoicesThisMonthBody": "Er zijn geen facturen met een factuurdatum in deze maand.",
+    "notSentYet": "Nog niet verzonden",
+    "daysOverdue": "{days} dagen te laat",
+    "dueOn": "Vervalt {date}",
+    "noRemindersSent": "Nog geen herinnering verzonden",
+    "remindersSentSummary": "{count, plural, one {# herinnering} other {# herinneringen}} verzonden · laatste: {stage} op {date}"
+  },
   "invoiceDetail": {
     "back": "Terug",
     "client": "Klant",
@@ -230,7 +252,12 @@
     "viewQuote": "Bekijk offerte",
     "clientVatNumber": "BTW-nummer klant",
     "clientKvkNumber": "KvK-nummer klant",
-    "notSentYet": "Nog niet verzonden — nog geen factuurnummer toegewezen"
+    "notSentYet": "Nog niet verzonden — nog geen factuurnummer toegewezen",
+    "remindersSent": "Verzonden herinneringen",
+    "reminderStage_before_due": "Herinnering vóór vervaldatum",
+    "reminderStage_due": "Herinnering op vervaldatum",
+    "reminderStage_overdue_1": "Herinnering (te laat)",
+    "reminderStage_overdue_2": "Herinnering (dringend te laat)"
   },
   "invoiceStatusActions": {
     "markAsSent": "Markeer als verzonden",
@@ -434,7 +461,22 @@
     "termsPlaceholder": "bijv. Deze offerte is 30 dagen geldig. Betaling binnen 14 dagen na factuur. Op al het werk zit 2 jaar garantie.",
     "saving": "Opslaan…",
     "saved": "Instellingen opgeslagen",
-    "saveSettings": "Instellingen opslaan"
+    "saveSettings": "Instellingen opslaan",
+    "mollieTitle": "Online betalen (Mollie)",
+    "mollieLive": "Verbonden — LIVE (echte betalingen)",
+    "mollieTest": "Verbonden — testmodus (geen echt geld)",
+    "mollieNotConnected": "Nog niet verbonden",
+    "mollieLiveHint": "Klanten betalen nu met echt geld via iDEAL. Wil je terug naar testen? Vervang de MOLLIE_API_KEY door een sleutel die met \"test_\" begint.",
+    "mollieTestHint": "Alleen nepbetalingen — veilig om te testen. Zodra je klaar bent voor echte betalingen, vervang je de MOLLIE_API_KEY door een sleutel die met \"live_\" begint (Mollie Dashboard → Ontwikkelaars → API-sleutels).",
+    "mollieSetupHint": "Maak een gratis account op mollie.com, kopieer je API-sleutel (Ontwikkelaars → API-sleutels) en plak deze als MOLLIE_API_KEY — lokaal in .env.local, op je live site via Vercel's projectinstellingen. Begin met een testsleutel (start met \"test_\").",
+    "remindersTitle": "Automatische betalingsherinneringen",
+    "remindersBody": "Stuurt vanzelf een herinnering vóór de vervaldatum, op de vervaldatum, en bij te late betaling — stopt zodra een factuur is betaald.",
+    "remindersEnabled": "Herinneringen versturen",
+    "reminderBeforeDueDays": "Dagen vóór vervaldatum",
+    "reminderOverdueDays1": "Eerste herinnering na (dagen te laat)",
+    "reminderOverdueDays2": "Tweede herinnering na (dagen te laat)",
+    "reminderScheduleError": "Vul voor alle herinneringen een getal van 0 of hoger in.",
+    "reminderScheduleOrderError": "De tweede herinnering moet later zijn dan de eerste."
   },
   "templateUpload": {
     "htmlOnly": "Upload een .html-bestand.",
@@ -541,6 +583,119 @@
       "submitting": "Opslaan…",
       "tooShort": "Wachtwoord moet minimaal 8 tekens zijn.",
       "mismatch": "Wachtwoorden komen niet overeen."
+    }
+  },
+  "marketing": {
+    "meta": {
+      "title": "Stipt — Offerte én factuur. Stipt geregeld.",
+      "description": "Maak een nette, professionele offerte in dertig seconden. Eén tik later staat de factuur klaar. Voor vakmensen in Nederland."
+    },
+    "nav": {
+      "features": "Functies",
+      "how": "Hoe het werkt",
+      "pricing": "Prijzen",
+      "startFree": "Gratis starten"
+    },
+    "hero": {
+      "badge": "Voor vakmensen in Nederland",
+      "titlePart1": "Offerte",
+      "titleAccent": "én",
+      "titlePart2": "factuur.",
+      "titleLine2": "Stipt geregeld.",
+      "subtitle": "Maak een nette, professionele offerte in dertig seconden — nog voordat je van de oprit rijdt. Eén tik later staat de factuur klaar. De cijfers kloppen altijd.",
+      "ctaPrimary": "Gratis starten",
+      "ctaSecondary": "Bekijk hoe het werkt",
+      "micro": "Geen creditcard nodig · Nederlands & Engels · Werkt op je telefoon",
+      "phoneBadge": "Offerte · concept",
+      "phoneItem1": "Tegelwerk badkamer",
+      "phoneItem1Price": "€ 540,00",
+      "phoneItem2": "Sanitair plaatsen",
+      "phoneItem2Price": "€ 380,00",
+      "phoneItem3": "Voorrijkosten",
+      "phoneItem3Price": "€ 45,00",
+      "phoneTotal": "Totaal incl. 21% btw",
+      "phoneTotalPrice": "€ 1.166,65",
+      "phoneSend": "Versturen met QR-link",
+      "phoneStamp": "● Bekeken door klant · 2 min geleden"
+    },
+    "trustStrip": {
+      "stat1Number": "30 sec",
+      "stat1Text": "van klantbezoek naar verstuurde offerte",
+      "stat2Number": "0",
+      "stat2Text": "rekenfouten — de btw klopt automatisch",
+      "stat3Number": "1 tik",
+      "stat3Text": "van offerte naar factuur",
+      "stat4Number": "NL · EN",
+      "stat4Text": "tweetalig, voor jou en je klant"
+    },
+    "features": {
+      "eyebrow": "Wat Stipt doet",
+      "title": "Eén tool voor je hele papierwerk",
+      "lead": "Van eerste offerte tot betaalde factuur. Gebouwd voor renovatie, installatie en schoonmaak — niet voor een boekhouder achter een bureau.",
+      "f1Title": "Offertes in dertig seconden",
+      "f1Body": "Kies je werk, tik de aantallen in en de prijs rolt er meteen uit. Stipt schrijft de nette omschrijving erbij — jij hoeft alleen te versturen.",
+      "f2Title": "Facturen die kloppen",
+      "f2Body": "Doorlopende factuurnummers zonder gaten, meerdere btw-tarieven, en een sluitende administratie. Precies zoals de Belastingdienst het wil.",
+      "f3Title": "Offerte → factuur in één tik",
+      "f3Body": "Werk klaar? Zet je geaccepteerde offerte direct om naar een factuur. Meerwerk voeg je zo toe. Niets overtypen, niets vergeten.",
+      "f4Title": "Cijfers waar je op kunt bouwen",
+      "f4Body": "Alle bedragen worden exact berekend — bewust zonder AI. De AI helpt alleen met de tekst, nooit met de som.",
+      "f5Title": "Deelbare links met QR & leesbevestiging",
+      "f5Body": "Stuur je offerte als link of QR-code. Je ziet meteen wanneer de klant 'm opent en accepteert. Netjes verstuurd via e-mail, met werkprogramma als bijlage. Alles in het Nederlands én Engels.",
+      "f5Tag": "QR · Leesbevestiging · Werkprogramma · E-mail"
+    },
+    "how": {
+      "eyebrow": "Hoe het werkt",
+      "title": "Drie stappen, klaar op de oprit",
+      "lead": "Geen cursus nodig. Als je een appje kunt sturen, kun je met Stipt werken.",
+      "step1Title": "Tik het werk in",
+      "step1Body": "Kies je diensten en aantallen op je telefoon, nog bij de klant. Stipt rekent de prijs en btw meteen uit.",
+      "step2Title": "Verstuur de offerte",
+      "step2Body": "Deel 'm als link of QR-code. Je klant opent, bekijkt en accepteert — en jij krijgt het te zien.",
+      "step3Title": "Zet om naar factuur",
+      "step3Body": "Werk af? Eén tik en de factuur staat klaar met het juiste nummer. Klaar. Betaald. Door naar de volgende klus."
+    },
+    "pricing": {
+      "eyebrow": "Prijzen",
+      "title": "Begin gratis. Upgrade als je klaar bent voor meer.",
+      "lead": "Gratis om te starten, met een kleine advertentie op je deelpagina. Premium haalt de advertenties weg en zet alles open.",
+      "freeName": "Gratis",
+      "freeDesc": "Alles wat je nodig hebt om te beginnen met offertes en facturen.",
+      "freeAmount": "€ {amount}",
+      "freePer": "/ altijd",
+      "freeFeature1": "Onbeperkt offertes & facturen",
+      "freeFeature2": "Automatische btw & factuurnummers",
+      "freeFeature3": "Deelbare link met QR-code",
+      "freeFeature4": "Nederlands & Engels",
+      "freeFeature5": "Kleine Stipt-advertentie op deelpagina",
+      "freeFeature6": "Stipt-logo op je PDF",
+      "freeCta": "Gratis starten",
+      "premiumBadge": "Aanrader",
+      "premiumName": "Premium",
+      "premiumDesc": "Geen advertenties, je eigen huisstijl, en de tools die tijd besparen.",
+      "premiumAmount": "€ {amount}",
+      "premiumPer": "/ maand, excl. btw",
+      "premiumFeature1": "Alles uit Gratis, plus:",
+      "premiumFeature2": "Geen advertenties — nergens",
+      "premiumFeature3": "Je eigen logo & kleuren op offerte en factuur",
+      "premiumFeature4": "Werkprogramma-bouwer als bijlage",
+      "premiumFeature5": "Leesbevestiging & accepteer-tracking",
+      "premiumFeature6": "Herinneringen voor openstaande facturen",
+      "premiumCta": "Probeer Premium 14 dagen",
+      "note": "Prijzen zijn een voorstel — pas ze gerust aan. Maandelijks opzegbaar. Betaal met iDEAL of creditcard."
+    },
+    "finalCta": {
+      "title": "Klaar met gepruts in Word en Excel",
+      "body": "Maak vandaag je eerste offerte. Gratis, geen creditcard, klaar voordat je koffie koud is.",
+      "ctaPrimary": "Gratis starten",
+      "ctaSecondary": "Bekijk de functies"
+    },
+    "footer": {
+      "features": "Functies",
+      "pricing": "Prijzen",
+      "login": "Inloggen op portal",
+      "contact": "Contact",
+      "copyright": "© {year} Stipt · Offerte én factuur. Stipt geregeld. · Gemaakt voor vakmensen in Nederland."
     }
   },
   "errors": {

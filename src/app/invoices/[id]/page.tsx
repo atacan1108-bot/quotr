@@ -37,6 +37,15 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     .limit(1)
     .maybeSingle()
 
+  // RLS (see supabase-invoice-reminders-setup.sql) already scopes this to
+  // invoices this owner actually owns — the .eq('invoice_id', id) here is
+  // just for the query, not the security boundary.
+  const { data: reminders } = await supabase
+    .from('invoice_reminders')
+    .select('stage, sent_at')
+    .eq('invoice_id', id)
+    .order('sent_at', { ascending: true })
+
   const status = deriveInvoiceStatus(invoice)
   const breakdown = calculateInvoice(invoice.line_items, {
     discountType: invoice.discount_type ?? undefined,
@@ -168,6 +177,20 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <p>{t('paymentReference')}: <strong>{invoice.payment_reference ?? invoice.invoice_number ?? '—'}</strong></p>
           </div>
         </div>
+
+        {reminders && reminders.length > 0 && (
+          <div className="bg-white rounded-2xl border border-border p-5 mb-4">
+            <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">{t('remindersSent')}</p>
+            <div className="space-y-2">
+              {reminders.map((r, i) => (
+                <div key={i} className="flex justify-between items-center text-sm">
+                  <span className="text-on-surface">{t(`reminderStage_${r.stage}` as 'reminderStage_before_due')}</span>
+                  <span className="text-muted">{formatDate(r.sent_at, locale, 'datetime')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <InvoicePdfAndEmail
           invoiceId={id}

@@ -240,7 +240,12 @@ export default function NewInvoiceForm({ ownerId, existingClients, vatPercent, l
                   )}
                 </div>
               )}
-              {clientSearch.trim() && !exactMatch && !clientListOpen && (
+              {/* Shown as soon as the typed name doesn't match an existing
+                  client — no longer gated behind closing the suggestions
+                  dropdown first, which made this easy to miss entirely
+                  (confirmed directly: several test clients got created
+                  with no email at all because of this). */}
+              {clientSearch.trim() && !exactMatch && (
                 <div className="mt-2 flex flex-col gap-2">
                   <input
                     value={newClientEmail}

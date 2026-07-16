@@ -35,6 +35,7 @@ export default function EmailInvoiceSection({ invoiceId, pdfUrl, locale, initial
   const [sendError, setSendError] = useState<string | null>(null)
   const [sentAt, setSentAt] = useState(initialSentAt)
   const [sentTo, setSentTo] = useState(initialEmailSentTo)
+  const [paymentLinkWarning, setPaymentLinkWarning] = useState<string | null>(null)
 
   if (!pdfUrl) return null
 
@@ -72,7 +73,7 @@ export default function EmailInvoiceSection({ invoiceId, pdfUrl, locale, initial
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to, cc: wantsCc, subject, body }),
       })
-      let data: { sentAt?: string; sentTo?: string; error?: string } | null = null
+      let data: { sentAt?: string; sentTo?: string; paymentLinkWarning?: string | null; error?: string } | null = null
       try {
         data = await res.json()
       } catch {
@@ -82,6 +83,7 @@ export default function EmailInvoiceSection({ invoiceId, pdfUrl, locale, initial
 
       setSentAt(data.sentAt ?? new Date().toISOString())
       setSentTo(data.sentTo ?? to)
+      setPaymentLinkWarning(data.paymentLinkWarning ?? null)
       setStatus('sent')
     } catch (err) {
       // Deliberately does NOT reset to/subject/body/attachmentFilename —
@@ -166,6 +168,12 @@ export default function EmailInvoiceSection({ invoiceId, pdfUrl, locale, initial
               {sentAt && <p className="text-xs text-muted">{formatDate(sentAt, locale, 'datetime')}</p>}
             </div>
           </div>
+          {paymentLinkWarning && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+              <ErrorIcon />
+              <p className="text-xs text-amber-800 leading-snug">{t('paymentLinkWarning', { message: paymentLinkWarning })}</p>
+            </div>
+          )}
           <button
             onClick={draftEmail}
             className="text-xs font-medium text-teal-500 hover:text-teal-700 transition self-start"

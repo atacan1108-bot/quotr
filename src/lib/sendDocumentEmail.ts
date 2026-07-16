@@ -18,7 +18,7 @@
  * for the exact DNS steps.
  */
 import { Resend } from 'resend'
-import { escapeHtmlParagraphs } from '@/lib/htmlTemplate'
+import { escapeHtmlParagraphs, escapeHtml } from '@/lib/htmlTemplate'
 
 const DEFAULT_FROM_ADDRESS = 'onboarding@resend.dev'
 
@@ -29,8 +29,22 @@ export interface SendDocumentEmailOptions {
   replyTo: string | null      // business email — so client replies land with the contractor
   subject: string
   bodyText: string            // plain text, blank-line-separated paragraphs
-  attachmentFilename: string
-  attachmentBuffer: Buffer
+  /** Both set together, or both omitted for no attachment (e.g. the
+   * reminder cron when a PDF fetch fails — better to send the reminder
+   * without an attachment than fake an empty/broken one). */
+  attachmentFilename?: string
+  attachmentBuffer?: Buffer
+  /**
+   * Mollie hosted-checkout link, if this document has one (invoices only
+   * — quotes have no payment concept). Rendered as a real HTML button
+   * appended AFTER the paragraph-escaped body, never blended into the
+   * AI-drafted/contractor-edited plain text: the engine owns this link,
+   * the same "AI writes prose, engine owns numbers" split as the PDF's
+   * own totals. Omit to render no button at all.
+   */
+  paymentUrl?: string | null
+  /** Button label, e.g. pdfLabels(locale).payNow — required if paymentUrl is set. */
+  payNowLabel?: string
 }
 
 export class SendDocumentEmailError extends Error {}
@@ -57,7 +71,10 @@ export async function sendDocumentEmail(opts: SendDocumentEmailOptions): Promise
   const fromAddress = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_ADDRESS
   const resend = new Resend(apiKey)
 
-  const html = escapeHtmlParagraphs(opts.bodyText)
+  let html = escapeHtmlParagraphs(opts.bodyText)
+  if (opts.paymentUrl) {
+    html += `<div style="margin-top:24px;"><a href="${escapeHtml(opts.paymentUrl)}" style="display:inline-block;background:#0f766e;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:8px;">${escapeHtml(opts.payNowLabel ?? 'Pay now')}</a></div>`
+  }
 
   // The Resend SDK does NOT throw on an API-level rejection (bad key,
   // unverified domain, rate limit, ...) — it resolves with { error } and a
@@ -71,9 +88,9 @@ export async function sendDocumentEmail(opts: SendDocumentEmailOptions): Promise
     ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
     subject: opts.subject,
     html,
-    attachments: [
-      { filename: opts.attachmentFilename, content: opts.attachmentBuffer },
-    ],
+    ...(opts.attachmentFilename && opts.attachmentBuffer
+      ? { attachments: [{ filename: opts.attachmentFilename, content: opts.attachmentBuffer }] }
+      : {}),
   })
 
   if (error) {

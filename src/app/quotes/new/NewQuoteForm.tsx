@@ -615,8 +615,11 @@ export default function NewQuoteForm({ ownerId, existingClients, rateCard }: Pro
                 </div>
               )}
 
-              {/* Phone field for new client (shown when typing a name not in the list) */}
-              {clientSearch.trim() && !exactMatch && !clientListOpen && (
+              {/* Phone field for new client (shown when typing a name not in
+                  the list) — no longer gated behind closing the suggestions
+                  dropdown first (same discoverability fix as the invoice
+                  form's new-client email field). */}
+              {clientSearch.trim() && !exactMatch && (
                 <input
                   type="tel"
                   inputMode="tel"

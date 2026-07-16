@@ -55,6 +55,8 @@ export function buildInvoiceTemplateData(data: InvoiceExportData): {
     total:            euro(breakdown.total),
     reverse_charge_note: invoice.reverse_charge ? l.reverseChargeNote : '',
     paid_stamp:       invoice.status === 'paid' ? l.paidStamp : '',
+    pay_now_url:      invoice.mollie_checkout_url ?? '',
+    lbl_pay_now:      l.payNow,
     lbl_invoice:             l.invoice,
     lbl_invoice_number:      l.invoiceNumber,
     lbl_invoice_date:        l.invoiceDate,
@@ -106,6 +108,7 @@ export function buildInvoiceTemplateData(data: InvoiceExportData): {
     hasDiscount:   breakdown.discount_amount > 0,
     reverseCharge: invoice.reverse_charge,
     isPaid:        invoice.status === 'paid',
+    showPayNow:    !!invoice.mollie_checkout_url && invoice.status !== 'paid',
   }
 
   return { data: templateData, items, vatRows, options }

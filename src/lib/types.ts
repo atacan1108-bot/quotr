@@ -123,6 +123,15 @@ export interface RateCard {
   // reliably. See supabase-invoicing-setup.sql and src/lib/invoicing/types.ts.
   invoice_next_sequence:      number
   invoice_next_sequence_year: number | null
+
+  // Automated payment reminders — real columns (not branding jsonb) because
+  // the reminder cron (src/app/api/cron/invoice-reminders) queries across
+  // EVERY contractor's rate_cards in one pass and needs to filter/sort on
+  // these directly. See supabase-invoice-reminders-setup.sql.
+  reminders_enabled:        boolean
+  reminder_before_due_days: number
+  reminder_overdue_days_1:  number
+  reminder_overdue_days_2:  number
 }
 
 export type JobStatus = 'draft' | 'quoted' | 'sent' | 'accepted' | 'declined'
@@ -283,6 +292,10 @@ export const DEFAULT_RATE_CARD: Omit<RateCard, 'id' | 'created_at' | 'owner_id'>
   notification_email: null,
   invoice_next_sequence:      1,
   invoice_next_sequence_year: null,
+  reminders_enabled:        true,
+  reminder_before_due_days: 3,
+  reminder_overdue_days_1:  7,
+  reminder_overdue_days_2:  14,
 }
 
 export const DEFAULT_RECURRING_CONFIG: RecurringConfig = {

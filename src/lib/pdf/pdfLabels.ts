@@ -181,6 +181,7 @@ export interface PdfLabels {
   statusSent:            string
   statusPaid:            string
   statusOverdue:         string
+  payNow:                string // "Betaal nu via iDEAL" / "Pay now via iDEAL"
 }
 
 const NL: PdfLabels = {
@@ -325,6 +326,7 @@ const NL: PdfLabels = {
   statusSent:            'Verzonden',
   statusPaid:            'Betaald',
   statusOverdue:         'Te laat',
+  payNow:                'Betaal nu via iDEAL',
 }
 
 const EN: PdfLabels = {
@@ -469,6 +471,7 @@ const EN: PdfLabels = {
   statusSent:            'Sent',
   statusPaid:            'Paid',
   statusOverdue:         'Overdue',
+  payNow:                'Pay now via iDEAL',
 }
 
 const DICTIONARIES: Record<Locale, PdfLabels> = { nl: NL, en: EN }

@@ -15,3 +15,15 @@ export function formatDate(date: Date | string, locale: Locale, style: 'short' |
     { day: 'numeric', month: 'long', year: 'numeric' }
   return new Intl.DateTimeFormat(intlLocale, options).format(d)
 }
+
+/**
+ * "juli 2026" / "July 2026" — month name always comes from Intl, never a
+ * hardcoded list, so it's correct in both app languages automatically.
+ * @param monthKey "YYYY-MM" (e.g. from the cash-flow month switcher)
+ */
+export function formatMonthYear(monthKey: string, locale: Locale): string {
+  const [year, month] = monthKey.split('-').map(Number)
+  const d = new Date(Date.UTC(year, month - 1, 1))
+  const intlLocale = locale === 'nl' ? 'nl-NL' : 'en-GB'
+  return new Intl.DateTimeFormat(intlLocale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d)
+}

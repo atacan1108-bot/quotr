@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
+    "@mollie/api-client": "^4.6.0",
     "@react-pdf/renderer": "^4.5.1",
     "@sparticuz/chromium": "^149.0.0",
     "@supabase/ssr": "^0.12.0",

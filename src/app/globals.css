@@ -3,6 +3,27 @@
 :root {
   --background: #FAFAF9;
   --foreground: #1C1C1E;
+
+  /* Stipt brand tokens — introduced for the marketing page
+     (src/components/marketing/MarketingHome.tsx). Additive only: nothing
+     above/below references these yet, so the portal's current look is
+     completely unaffected. Available globally so the portal can adopt
+     them later, per the rebrand plan — until then they're only actually
+     used inside .stipt-scoped marketing styles. */
+  --diep-teal: #0F766E;
+  --nacht-teal: #0A3C38;
+  --teal-tint: #D6F2EC;
+  --oker: #E4952B;
+  --oker-tint: #FBEBCF;
+  --papier: #FAF6EC;
+  --papier-2: #F3ECDA;
+  --inkt: #17201E;
+  --steen-700: #575751;
+  --steen-400: #9A988E;
+  --steen-200: #E5E0D3;
+  --lijn: #DAD4C4;
+  --succes: #1F8A5B;
+  --fout: #C4472C;
 }
 
 @theme inline {

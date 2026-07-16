@@ -58,6 +58,18 @@ export interface Invoice {
   // sent_at/status already exist and get set the moment the invoice number
   // is assigned (see assign_invoice_number()), so only the address is new here.
   email_sent_to: string | null
+
+  // Mollie iDEAL payment — see src/lib/mollie/. A fresh payment (and thus a
+  // fresh checkout URL) is created on every send/resend, since iDEAL
+  // checkout sessions expire; these columns always reflect the MOST
+  // RECENT payment attempt, not a history of all attempts. Status here is
+  // Mollie's own vocabulary (open/paid/failed/expired/canceled) — kept
+  // deliberately separate from `status` above, which only the payment
+  // webhook is allowed to flip to 'paid'.
+  mollie_payment_id:         string | null
+  mollie_checkout_url:       string | null
+  mollie_payment_status:     string | null
+  mollie_payment_created_at: string | null
 }
 
 export type InvoiceWithJob = Invoice & {

@@ -19,12 +19,17 @@ const ACCENT = '#0F766E'
  * separate per-QUOTE language (job.language, not this app-locale cookie),
  * and showing this switcher there would let a customer toggle a control
  * that does nothing meaningful for them.
+ *
+ * Also hidden on the marketing homepage (`/` and `/en`) — it has its own
+ * nav-integrated NL/EN links (real navigation between the two routes, see
+ * src/components/marketing/MarketingHome.tsx), so this floating switcher
+ * would be a redundant, visually clashing second control for the same thing.
  */
 export default function LanguageSwitcher() {
   const locale = useLocale() as Locale
   const t = useTranslations('language')
   const pathname = usePathname()
-  if (pathname?.startsWith('/quote/')) return null
+  if (pathname?.startsWith('/quote/') || pathname === '/' || pathname === '/en') return null
 
   return (
     <div

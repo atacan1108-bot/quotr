@@ -128,6 +128,11 @@ export const DEFAULT_INVOICE_TEMPLATE_HTML = `
             {{lbl_payment_reference}}: <strong>{{payment_reference}}</strong>
           </div>
         </div>
+        <!-- PAY_NOW_START -->
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#f6fafb;border:1px solid #d7e2e6;border-radius:10px;padding:16px 22px;">
+          <a href="{{pay_now_url}}" style="display:inline-block;background:#0f766e;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:8px;letter-spacing:0.02em;">{{lbl_pay_now}}</a>
+        </div>
+        <!-- PAY_NOW_END -->
       </div>
 
       <p class="opt-line" style="margin-top:14px;font-size:12px;color:#5a686e;line-height:1.6;break-inside:avoid;page-break-inside:avoid;">{{note_text}}</p>

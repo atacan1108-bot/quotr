@@ -10,6 +10,7 @@
   "nav": {
     "quotes": "Quotes",
     "invoices": "Invoices",
+    "cashflow": "Overview",
     "settings": "Settings",
     "logout": "Log out"
   },
@@ -179,7 +180,8 @@
     "sendButton": "Send email",
     "sentTo": "Sent to {email}",
     "sendAgain": "Send again",
-    "sessionExpired": "Your session may have expired — please refresh the page and try again."
+    "sessionExpired": "Your session may have expired — please refresh the page and try again.",
+    "paymentLinkWarning": "Email sent, but the \"Pay now\" link couldn't be created: {message}"
   },
   "generateInvoicePdfApi": {
     "invoiceNotFound": "Invoice not found.",
@@ -206,6 +208,26 @@
     "dueDate": "Due {date}",
     "notSentYet": "Not sent yet"
   },
+  "cashflow": {
+    "title": "Overview",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "backToThisMonth": "Back to this month",
+    "headlineLabel": "You're owed",
+    "headline": "{amount} across {count} invoices",
+    "invoiced": "Invoiced",
+    "outstanding": "Outstanding",
+    "paid": "Paid",
+    "overdue": "Overdue",
+    "monthInvoicesTitle": "Invoices in {month}",
+    "noInvoicesThisMonthTitle": "No invoices this month",
+    "noInvoicesThisMonthBody": "There are no invoices with an invoice date in this month.",
+    "notSentYet": "Not sent yet",
+    "daysOverdue": "{days} days overdue",
+    "dueOn": "Due {date}",
+    "noRemindersSent": "No reminder sent yet",
+    "remindersSentSummary": "{count, plural, one {# reminder} other {# reminders}} sent · last: {stage} on {date}"
+  },
   "invoiceDetail": {
     "back": "Back",
     "client": "Client",
@@ -230,7 +252,12 @@
     "viewQuote": "View quote",
     "clientVatNumber": "Client VAT number",
     "clientKvkNumber": "Client KvK number",
-    "notSentYet": "Not sent yet — no invoice number assigned"
+    "notSentYet": "Not sent yet — no invoice number assigned",
+    "remindersSent": "Reminders sent",
+    "reminderStage_before_due": "Reminder before due date",
+    "reminderStage_due": "Reminder on due date",
+    "reminderStage_overdue_1": "Reminder (overdue)",
+    "reminderStage_overdue_2": "Reminder (urgently overdue)"
   },
   "invoiceStatusActions": {
     "markAsSent": "Mark as sent",
@@ -434,7 +461,22 @@
     "termsPlaceholder": "e.g. This quote is valid for 30 days. Payment due within 14 days of invoice. All work guaranteed for 2 years.",
     "saving": "Saving…",
     "saved": "Settings saved",
-    "saveSettings": "Save settings"
+    "saveSettings": "Save settings",
+    "mollieTitle": "Online payments (Mollie)",
+    "mollieLive": "Connected — LIVE (real payments)",
+    "mollieTest": "Connected — test mode (no real money)",
+    "mollieNotConnected": "Not connected yet",
+    "mollieLiveHint": "Clients are now paying with real money via iDEAL. Want to go back to testing? Replace MOLLIE_API_KEY with a key that starts with \"test_\".",
+    "mollieTestHint": "Fake payments only — safe to test freely. When you're ready to accept real payments, replace MOLLIE_API_KEY with a key that starts with \"live_\" (Mollie Dashboard → Developers → API keys).",
+    "mollieSetupHint": "Sign up free at mollie.com, copy your API key (Developers → API keys), and paste it as MOLLIE_API_KEY — locally in .env.local, on your live site via Vercel's project settings. Start with a test key (starts with \"test_\").",
+    "remindersTitle": "Automated payment reminders",
+    "remindersBody": "Automatically sends a reminder before the due date, on the due date, and when overdue — stops the moment an invoice is paid.",
+    "remindersEnabled": "Send reminders",
+    "reminderBeforeDueDays": "Days before due date",
+    "reminderOverdueDays1": "First overdue reminder after (days)",
+    "reminderOverdueDays2": "Second overdue reminder after (days)",
+    "reminderScheduleError": "Enter 0 or higher for every reminder timing.",
+    "reminderScheduleOrderError": "The second reminder must come later than the first."
   },
   "templateUpload": {
     "htmlOnly": "Please upload an .html file.",
@@ -541,6 +583,119 @@
       "submitting": "Saving…",
       "tooShort": "Password must be at least 8 characters.",
       "mismatch": "Passwords don't match."
+    }
+  },
+  "marketing": {
+    "meta": {
+      "title": "Stipt — Quotes and invoices, done on the dot.",
+      "description": "Build a clean, professional quote in thirty seconds. One tap later, the invoice is ready. For tradespeople in the Netherlands."
+    },
+    "nav": {
+      "features": "Features",
+      "how": "How it works",
+      "pricing": "Pricing",
+      "startFree": "Start free"
+    },
+    "hero": {
+      "badge": "For tradespeople in the Netherlands",
+      "titlePart1": "Quotes",
+      "titleAccent": "and",
+      "titlePart2": "invoices.",
+      "titleLine2": "Done, on the dot.",
+      "subtitle": "Build a clean, professional quote in thirty seconds — before you've even left the driveway. One tap later, the invoice is ready. The numbers are always right.",
+      "ctaPrimary": "Start free",
+      "ctaSecondary": "See how it works",
+      "micro": "No credit card · Dutch & English · Works on your phone",
+      "phoneBadge": "Quote · draft",
+      "phoneItem1": "Bathroom tiling",
+      "phoneItem1Price": "€ 540.00",
+      "phoneItem2": "Fit sanitary ware",
+      "phoneItem2Price": "€ 380.00",
+      "phoneItem3": "Call-out fee",
+      "phoneItem3Price": "€ 45.00",
+      "phoneTotal": "Total incl. 21% VAT",
+      "phoneTotalPrice": "€ 1,166.65",
+      "phoneSend": "Send with QR link",
+      "phoneStamp": "● Viewed by client · 2 min ago"
+    },
+    "trustStrip": {
+      "stat1Number": "30 sec",
+      "stat1Text": "from site visit to sent quote",
+      "stat2Number": "0",
+      "stat2Text": "maths errors — VAT is automatic",
+      "stat3Number": "1 tap",
+      "stat3Text": "from quote to invoice",
+      "stat4Number": "NL · EN",
+      "stat4Text": "bilingual, for you and your client"
+    },
+    "features": {
+      "eyebrow": "What Stipt does",
+      "title": "One tool for all your paperwork",
+      "lead": "From first quote to paid invoice. Built for renovation, installation and cleaning crews — not for an accountant behind a desk.",
+      "f1Title": "Quotes in thirty seconds",
+      "f1Body": "Pick the work, tap in the quantities, and the price rolls straight out. Stipt writes the tidy wording for you — you just hit send.",
+      "f2Title": "Invoices that add up",
+      "f2Body": "Gap-free sequential invoice numbers, multiple VAT rates, and books that reconcile. Exactly how the tax office wants it.",
+      "f3Title": "Quote → invoice in one tap",
+      "f3Body": "Job done? Turn your accepted quote straight into an invoice. Add any extra work in seconds. Nothing retyped, nothing forgotten.",
+      "f4Title": "Numbers you can build on",
+      "f4Body": "Every amount is calculated exactly — deliberately without AI. The AI only helps with the wording, never with the maths.",
+      "f5Title": "Shareable links with QR & read receipts",
+      "f5Body": "Send your quote as a link or QR code. You see the moment the client opens and accepts it. Delivered tidily by email, with the work programme attached. All in Dutch and English.",
+      "f5Tag": "QR · Read receipts · Work programme · Email"
+    },
+    "how": {
+      "eyebrow": "How it works",
+      "title": "Three steps, done in the driveway",
+      "lead": "No training needed. If you can send a text, you can run Stipt.",
+      "step1Title": "Tap in the work",
+      "step1Body": "Pick your services and quantities on your phone, right there on site. Stipt works out the price and VAT instantly.",
+      "step2Title": "Send the quote",
+      "step2Body": "Share it as a link or QR code. Your client opens, reviews and accepts — and you see it happen.",
+      "step3Title": "Turn it into an invoice",
+      "step3Body": "Job finished? One tap and the invoice is ready with the right number. Done. Paid. On to the next job."
+    },
+    "pricing": {
+      "eyebrow": "Pricing",
+      "title": "Start free. Upgrade when you're ready for more.",
+      "lead": "Free to start, with a small ad on your share page. Premium removes the ads and unlocks everything.",
+      "freeName": "Free",
+      "freeDesc": "Everything you need to start quoting and invoicing.",
+      "freeAmount": "€ {amount}",
+      "freePer": "/ forever",
+      "freeFeature1": "Unlimited quotes & invoices",
+      "freeFeature2": "Automatic VAT & invoice numbers",
+      "freeFeature3": "Shareable link with QR code",
+      "freeFeature4": "Dutch & English",
+      "freeFeature5": "Small Stipt ad on your share page",
+      "freeFeature6": "Stipt logo on your PDF",
+      "freeCta": "Start free",
+      "premiumBadge": "Most popular",
+      "premiumName": "Premium",
+      "premiumDesc": "No ads, your own branding, and the tools that save real time.",
+      "premiumAmount": "€ {amount}",
+      "premiumPer": "/ month, excl. VAT",
+      "premiumFeature1": "Everything in Free, plus:",
+      "premiumFeature2": "No ads — anywhere",
+      "premiumFeature3": "Your own logo & colours on quotes and invoices",
+      "premiumFeature4": "Work-programme builder as an annex",
+      "premiumFeature5": "Read receipts & accept tracking",
+      "premiumFeature6": "Reminders for outstanding invoices",
+      "premiumCta": "Try Premium for 14 days",
+      "note": "Prices are a placeholder — adjust them as you like. Cancel monthly. Pay with iDEAL or card."
+    },
+    "finalCta": {
+      "title": "Done wrestling with Word and Excel",
+      "body": "Make your first quote today. Free, no card, done before your coffee's cold.",
+      "ctaPrimary": "Start free",
+      "ctaSecondary": "See the features"
+    },
+    "footer": {
+      "features": "Features",
+      "pricing": "Pricing",
+      "login": "Log in to portal",
+      "contact": "Contact",
+      "copyright": "© {year} Stipt · Quotes and invoices, done on the dot. · Built for tradespeople in the Netherlands."
     }
   },
   "errors": {

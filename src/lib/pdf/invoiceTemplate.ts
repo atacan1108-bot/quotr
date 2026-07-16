@@ -59,6 +59,11 @@ export interface InvoiceTemplateData {
   total:                  string
   reverse_charge_note:    string
   paid_stamp:             string
+  /** Mollie hosted-checkout URL for this invoice's current payment —
+   * empty when no payment has been created yet (see invoicing/types.ts's
+   * mollie_checkout_url). Only rendered when options.showPayNow is true. */
+  pay_now_url:            string
+  lbl_pay_now:             string
   lbl_invoice:             string
   lbl_invoice_number:      string
   lbl_invoice_date:        string
@@ -127,6 +132,10 @@ export interface FillInvoiceTemplateOptions {
   hasDiscount:    boolean
   reverseCharge:  boolean
   isPaid:         boolean
+  /** Show the "Pay now" button — true only when a Mollie checkout URL
+   * exists AND the invoice isn't already paid (an already-paid invoice
+   * has nothing left to pay, regardless of whether an old link exists). */
+  showPayNow:     boolean
 }
 
 /**
@@ -146,6 +155,7 @@ export function fillInvoiceTemplate(
   html = stripConditionalBlock(html, 'DISCOUNT', options.hasDiscount)
   html = stripConditionalBlock(html, 'REVERSE_CHARGE', options.reverseCharge)
   html = stripConditionalBlock(html, 'PAID', options.isPaid)
+  html = stripConditionalBlock(html, 'PAY_NOW', options.showPayNow)
   html = replaceScalarTokens(html, data)
 
   const leftover = findLeftoverTokens(html)

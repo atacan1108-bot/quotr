@@ -13,13 +13,14 @@ export default function LoginPage() {
     <div className="min-h-screen bg-surface flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
 
-        {/* Logo */}
-        <div className="flex items-center justify-center mb-10">
+        {/* Logo — links back to the marketing homepage, the only way back
+            to it from here (there was previously no way back at all). */}
+        <Link href="/" className="flex items-center justify-center mb-10">
           <div className="w-12 h-12 rounded-xl bg-teal-500 flex items-center justify-center">
             <span className="text-white text-xl font-bold tracking-tight">Q</span>
           </div>
           <span className="ml-3 text-2xl font-semibold text-on-surface tracking-tight">Quotr</span>
-        </div>
+        </Link>
 
         <h1 className="text-xl font-semibold text-on-surface mb-1">{t('welcomeBack')}</h1>
         <p className="text-sm text-muted mb-8">{t('subtitle')}</p>
