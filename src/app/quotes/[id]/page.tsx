@@ -91,7 +91,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         {/* Title & client */}
         <div className="bg-white rounded-2xl border border-border p-5 mb-4">
           <div className="flex items-start justify-between gap-3 mb-3">
-            <h1 className="text-lg font-bold text-on-surface">{job.title}</h1>
+            <h1 className="text-lg font-bold text-on-surface font-display">{job.title}</h1>
             <p className="text-xs text-muted shrink-0 mt-1">{formatDate(job.created_at, locale)}</p>
           </div>
           <div className="mb-3">

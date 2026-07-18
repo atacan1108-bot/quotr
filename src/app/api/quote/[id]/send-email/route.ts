@@ -60,7 +60,7 @@ export async function POST(
   }
 
   const l = pdfLabels(data.job.language)
-  const businessName = data.rateCard.business_name || 'Quotr'
+  const businessName = data.rateCard.business_name || 'Stipt'
 
   let attachmentBuffer: Buffer
   try {

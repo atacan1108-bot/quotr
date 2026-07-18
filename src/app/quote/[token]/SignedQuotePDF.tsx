@@ -23,7 +23,7 @@ interface Props {
 
 export function SignedQuotePDF({ quote, signerName, signatureDataUrl, signedAt }: Props) {
   const { business, breakdown } = quote
-  const businessName = business.name ?? 'Quotr'
+  const businessName = business.name ?? 'Stipt'
   const s = createPdfStyles(quote.branding.primaryColor || DEFAULT_PRIMARY)
   const locale = quote.language
   const l = pdfLabels(locale)
@@ -32,7 +32,7 @@ export function SignedQuotePDF({ quote, signerName, signatureDataUrl, signedAt }
     <Document
       title={`${l.quoteFor} ${quote.clientName ?? quote.jobTitle}`}
       author={businessName}
-      creator="Quotr"
+      creator="Stipt"
     >
       <Page size="A4" style={s.page}>
 

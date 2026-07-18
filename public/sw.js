@@ -1,4 +1,7 @@
-const CACHE = 'quotr-v3'
+// Bumped for the Quotr -> Stipt rebrand — forces already-installed PWAs to
+// drop every old-branded cached asset (icons, old CSS/JS chunks) on next
+// launch, rather than waiting for a version they'll never naturally reach.
+const CACHE = 'stipt-v1'
 const PRECACHE = ['/login']
 
 self.addEventListener('install', e => {

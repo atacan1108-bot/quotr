@@ -46,12 +46,10 @@ export default async function QuotesPage() {
       {/* Header — title + primary "New Quote" action (desktop sidebar and
           mobile bottom nav no longer carry a New Quote item; this button,
           plus the mobile-only FAB below, are the only entry points now).
-          On mobile there's no dedicated top bar (unlike desktop's own
-          header, which already reserves space for it), so this row needs
-          its own top margin to clear the fixed language-switcher pill
-          pinned to the top-right of the viewport. */}
-      <div className="flex items-center justify-between mb-6 mt-12 md:mt-0">
-        <h1 className="text-lg font-semibold text-on-surface">{t('title')}</h1>
+          No extra top margin needed — both the desktop header and the
+          mobile one ((app)/layout.tsx) now reserve that space themselves. */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-lg font-semibold text-on-surface font-display">{t('title')}</h1>
         <Link
           href="/quotes/new"
           className="h-11 px-4 inline-flex items-center gap-1.5 rounded-xl bg-teal-500 text-white text-sm font-semibold hover:bg-teal-700 active:bg-teal-700 active:scale-[0.98] transition"

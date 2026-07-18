@@ -23,6 +23,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
+import Logo from '@/components/Logo'
 import { createClient } from '@/lib/supabase/client'
 
 type Phase = 'verifying' | 'ready' | 'invalid' | 'saving' | 'done'
@@ -241,10 +242,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-surface flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center mb-10">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: ACCENT }}>
-            <span className="text-white text-xl font-bold tracking-tight">Q</span>
-          </div>
-          <span className="ml-3 text-2xl font-semibold text-on-surface tracking-tight">Quotr</span>
+          <Logo size="lg" />
         </div>
         {children}
       </div>

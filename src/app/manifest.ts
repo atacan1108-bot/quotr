@@ -2,14 +2,14 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Quotr',
-    short_name: 'Quotr',
-    description: 'Professional quotes in under 2 minutes',
+    name: 'Stipt',
+    short_name: 'Stipt',
+    description: 'Offerte én factuur. Stipt geregeld.',
     start_url: '/quotes',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#FAFAF9',
-    theme_color: '#0D9483',
+    background_color: '#FAF6EC',
+    theme_color: '#0F766E',
     icons: [
       {
         src: '/icons/icon-192.svg',

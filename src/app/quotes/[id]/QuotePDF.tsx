@@ -19,10 +19,10 @@ const euro = (n: number) =>
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const TEAL  = '#0F766E'
-const INK   = '#1C1C1E'
-const MUTED = '#6E7580'
-const RULE  = '#E5E5E3'
-const LIGHT = '#F4FDFB'
+const INK   = '#17201E'
+const MUTED = '#575751'
+const RULE  = '#DAD4C4'
+const LIGHT = '#F3ECDA'
 
 const s = StyleSheet.create({
   page:          { fontFamily: 'Helvetica', fontSize: 9, color: INK, paddingHorizontal: 48, paddingVertical: 48, backgroundColor: '#FFFFFF' },
@@ -88,15 +88,15 @@ export function QuotePDF({ data }: { data: QuoteExportData }) {
   return (
     <Document
       title={job.title}
-      author={rateCard.business_name ?? 'Quotr'}
-      creator="Quotr"
+      author={rateCard.business_name ?? 'Stipt'}
+      creator="Stipt"
     >
       <Page size="A4" style={s.page}>
 
         {/* ── Header ─────────────────────────────────────────── */}
         <View style={s.headerRow}>
           <View>
-            <Text style={s.brandName}>{rateCard.business_name ?? 'Quotr'}</Text>
+            <Text style={s.brandName}>{rateCard.business_name ?? 'Stipt'}</Text>
             {rateCard.business_address && <Text style={s.brandSub}>{rateCard.business_address}</Text>}
             {rateCard.business_email   && <Text style={s.brandSub}>{rateCard.business_email}</Text>}
           </View>

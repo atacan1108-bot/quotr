@@ -42,7 +42,7 @@ export interface PdfLabels {
   fixedPrice:            string
   markupSuffix:          string // "+15% markup" / "+15% opslag"
   viewAndAcceptOnline:   string
-  generatedWith:         string // "Generated with Quotr · All prices in euro (€) · VAT {percent}%" template
+  generatedWith:         string // "Generated with Stipt · All prices in euro (€) · VAT {percent}%" template
   acceptedAndSigned:     string
   signedElectronicallyVia: string
   dayRate:               string
@@ -155,7 +155,7 @@ export interface PdfLabels {
   emailDeclinedIntro:    string // "<strong>{client}</strong> declined the quote for <strong>{job}</strong>."
   emailDeclineReasonLabel: string // "Reason given:"
   emailTimeLabel:        string
-  emailViewInApp:        string // link text, "View in Quotr"
+  emailViewInApp:        string // link text, "View in Stipt"
   emailTotalLabel:       string
   emailDownloadSignedPdf: string
   // Invoice-only labels (src/lib/pdf/invoiceTemplate.ts, invoice PDF/DOCX,
@@ -209,9 +209,9 @@ const NL: PdfLabels = {
   fixedPrice:            'Vaste prijs',
   markupSuffix:          'opslag',
   viewAndAcceptOnline:   'Bekijk en accepteer deze offerte online:',
-  generatedWith:         'Gegenereerd met Quotr · Alle prijzen in euro (€) · BTW {percent}%',
+  generatedWith:         'Gegenereerd met Stipt · Alle prijzen in euro (€) · BTW {percent}%',
   acceptedAndSigned:     'Geaccepteerd & ondertekend',
-  signedElectronicallyVia: 'Elektronisch ondertekend via Quotr',
+  signedElectronicallyVia: 'Elektronisch ondertekend via Stipt',
   dayRate:               'Dagtarief',
   hourlyRate:            'Uurtarief',
   perDay:                'per dag',
@@ -251,7 +251,7 @@ const NL: PdfLabels = {
   validUntil:            'Geldig tot {date}',
   youAcceptedOn:         'Je hebt deze offerte geaccepteerd op {date}.',
   downloadPdf:           'Download PDF',
-  sentViaQuotr:          'Verzonden via Quotr',
+  sentViaQuotr:          'Verzonden via Stipt',
   termsAndConditionsShort: 'Algemene voorwaarden',
   notSetUpTitle:         'Deze pagina is nog niet ingesteld',
   notSetUpBody:          'De eigenaar moet het delen van offertes nog afronden voordat deze link werkt.',
@@ -303,7 +303,7 @@ const NL: PdfLabels = {
   emailDeclinedIntro:    '<strong>{client}</strong> heeft de offerte voor <strong>{job}</strong> afgewezen.',
   emailDeclineReasonLabel: 'Opgegeven reden:',
   emailTimeLabel:        'Tijdstip:',
-  emailViewInApp:        'Bekijk in Quotr',
+  emailViewInApp:        'Bekijk in Stipt',
   emailTotalLabel:       'Totaal:',
   emailDownloadSignedPdf: 'Download de ondertekende PDF',
   invoice:               'Factuur',
@@ -354,9 +354,9 @@ const EN: PdfLabels = {
   fixedPrice:            'Fixed price',
   markupSuffix:          'markup',
   viewAndAcceptOnline:   'View and accept this quote online:',
-  generatedWith:         'Generated with Quotr · All prices in euro (€) · VAT {percent}%',
+  generatedWith:         'Generated with Stipt · All prices in euro (€) · VAT {percent}%',
   acceptedAndSigned:     'Accepted & signed',
-  signedElectronicallyVia: 'Signed electronically via Quotr',
+  signedElectronicallyVia: 'Signed electronically via Stipt',
   dayRate:               'Daily rate',
   hourlyRate:            'Hourly rate',
   perDay:                'per day',
@@ -396,7 +396,7 @@ const EN: PdfLabels = {
   validUntil:            'Valid until {date}',
   youAcceptedOn:         'You accepted this quote on {date}.',
   downloadPdf:           'Download PDF',
-  sentViaQuotr:          'Sent via Quotr',
+  sentViaQuotr:          'Sent via Stipt',
   termsAndConditionsShort: 'Terms & conditions',
   notSetUpTitle:         'This page isn’t set up yet',
   notSetUpBody:          'The site owner needs to finish setting up sharing before this link will work.',
@@ -448,7 +448,7 @@ const EN: PdfLabels = {
   emailDeclinedIntro:    '<strong>{client}</strong> declined the quote for <strong>{job}</strong>.',
   emailDeclineReasonLabel: 'Reason given:',
   emailTimeLabel:        'Time:',
-  emailViewInApp:        'View in Quotr',
+  emailViewInApp:        'View in Stipt',
   emailTotalLabel:       'Total:',
   emailDownloadSignedPdf: 'Download the signed PDF',
   invoice:               'Invoice',

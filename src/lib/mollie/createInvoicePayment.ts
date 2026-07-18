@@ -73,7 +73,7 @@ export async function createInvoicePayment(
   }
 
   const isLocal = /^https?:\/\/localhost(:\d+)?$/.test(baseUrl)
-  const description = `${invoice.invoice_number ?? invoice.id} — ${rateCard.business_name || 'Quotr'}`.slice(0, 255)
+  const description = `${invoice.invoice_number ?? invoice.id} — ${rateCard.business_name || 'Stipt'}`.slice(0, 255)
 
   let payment
   try {

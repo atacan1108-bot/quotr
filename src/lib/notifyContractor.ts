@@ -169,7 +169,7 @@ export async function notifyContractor(opts: NotifyContractorOptions): Promise<v
   // null error only on success. Check it explicitly, or a real failure
   // here would silently vanish instead of hitting the caller's catch block.
   const { error } = await resend.emails.send({
-    from:    `Quotr <${fromAddress}>`,
+    from:    `Stipt <${fromAddress}>`,
     to:      toEmail,
     subject,
     html,

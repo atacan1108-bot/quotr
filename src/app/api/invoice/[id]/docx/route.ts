@@ -83,7 +83,7 @@ export function buildInvoiceDocx(data: InvoiceExportData): Document {
       children: [
         new Paragraph({
           heading: HeadingLevel.HEADING_1,
-          children: [new TextRun({ text: rateCard.business_name ?? 'Quotr', color: TEAL, bold: true, size: 36 })],
+          children: [new TextRun({ text: rateCard.business_name ?? 'Stipt', color: TEAL, bold: true, size: 36 })],
         }),
         ...(rateCard.business_address ? [
           new Paragraph({ children: [new TextRun({ text: rateCard.business_address, color: '6E7580', size: 18 })] }),

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
+import Logo from '@/components/Logo'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ForgotPasswordPage() {
@@ -62,10 +63,7 @@ export default function ForgotPasswordPage() {
 
         {/* Logo — links back to the marketing homepage. */}
         <Link href="/" className="flex items-center justify-center mb-10">
-          <div className="w-12 h-12 rounded-xl bg-teal-500 flex items-center justify-center">
-            <span className="text-white text-xl font-bold tracking-tight">Q</span>
-          </div>
-          <span className="ml-3 text-2xl font-semibold text-on-surface tracking-tight">Quotr</span>
+          <Logo size="lg" />
         </Link>
 
         <h1 className="text-xl font-semibold text-on-surface mb-1">{t('title')}</h1>

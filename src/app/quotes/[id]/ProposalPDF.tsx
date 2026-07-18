@@ -24,8 +24,8 @@ export function ProposalPDF({ data }: { data: QuoteExportData }) {
   return (
     <Document
       title={`${l.quoteFor} ${client?.name ?? job.title}`}
-      author={rateCard.business_name ?? 'Quotr'}
-      creator="Quotr"
+      author={rateCard.business_name ?? 'Stipt'}
+      creator="Stipt"
     >
       <Page size="A4" style={s.page}>
 

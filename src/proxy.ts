@@ -87,5 +87,11 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons|sw.js|manifest|.*\\.png$|.*\\.ico$).*)'],
+  // Pre-existing gap found while verifying the rebranded favicon: "icon"
+  // (Next.js's dynamic favicon route, src/app/icon.tsx) wasn't excluded —
+  // only the static "icons" folder was — so a logged-out visitor got
+  // redirected to /login instead of the actual icon, meaning the favicon
+  // never loaded for anyone without a session. Added alongside the
+  // existing static-asset exclusions above, same category of fix.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon$|icons|sw.js|manifest|.*\\.png$|.*\\.ico$).*)'],
 }

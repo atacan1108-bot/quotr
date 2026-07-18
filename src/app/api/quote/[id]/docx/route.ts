@@ -111,7 +111,7 @@ export async function GET(
           heading: HeadingLevel.HEADING_1,
           children: [
             new TextRun({
-              text:  rateCard.business_name ?? 'Quotr',
+              text:  rateCard.business_name ?? 'Stipt',
               color: TEAL,
               bold:  true,
               size:  36,

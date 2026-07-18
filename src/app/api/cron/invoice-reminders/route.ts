@@ -160,7 +160,7 @@ export async function GET(req: Request) {
         }
       }
 
-      const businessName = settings.business_name || 'Quotr'
+      const businessName = settings.business_name || 'Stipt'
       const l = pdfLabels(invoice.language)
       const { subject, body } = buildReminderEmail({
         stage,

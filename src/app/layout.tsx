@@ -1,27 +1,36 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist } from 'next/font/google'
+import { Space_Grotesk, Hanken_Grotesk, Space_Mono } from 'next/font/google'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale } from 'next-intl/server'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import './globals.css'
 
-const geist = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
+// The whole app's font system — same three fonts as the marketing page
+// (src/components/marketing/MarketingHome.tsx), loaded once here instead
+// of duplicated, since the portal now uses them too. Hanken Grotesk is
+// body/UI text (--font-sans below), Space Grotesk is for headings
+// (available as the `font-display` utility), Space Mono is for numbers —
+// prices, totals, invoice/quote numbers (available as `font-mono`,
+// already used by TemplateUploadSection's token-name display).
+const spaceGrotesk = Space_Grotesk({ variable: '--font-space-grotesk', subsets: ['latin'], weight: ['500', '600', '700'] })
+const hankenGrotesk = Hanken_Grotesk({ variable: '--font-hanken-grotesk', subsets: ['latin'], weight: ['400', '500', '600', '700'] })
+const spaceMono = Space_Mono({ variable: '--font-space-mono', subsets: ['latin'], weight: ['400', '700'] })
 
 export const metadata: Metadata = {
-  title: 'Quotr',
-  description: 'Professional quotes in under 2 minutes',
+  title: 'Stipt',
+  description: 'Offerte én factuur. Stipt geregeld.',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Quotr',
+    title: 'Stipt',
     startupImage: '/icons/icon-512.svg',
   },
   formatDetection: { telephone: false },
-  applicationName: 'Quotr',
+  applicationName: 'Stipt',
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0D9483',
+  themeColor: '#0F766E',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -32,7 +41,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale()
   return (
-    <html lang={locale} className={geist.variable}>
+    <html lang={locale} className={`${spaceGrotesk.variable} ${hankenGrotesk.variable} ${spaceMono.variable}`}>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
         <meta name="mobile-web-app-capable" content="yes" />

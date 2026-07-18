@@ -14,6 +14,7 @@
 import type { TemplateData } from '@/lib/htmlTemplate'
 import { escapeHtml } from '@/lib/htmlTemplate'
 import { pdfLabels } from '@/lib/pdf/pdfLabels'
+import { STIPT_PDF_FONT_CSS } from './pdfFonts'
 import type { Locale } from '@/i18n/config'
 
 /** Reserve this much bottom margin on every page for the footer — see
@@ -43,12 +44,16 @@ export function buildFooterTemplate(data: TemplateData, locale: Locale): string 
     .replace('{current}', '<span class="pageNumber"></span>')
     .replace('{total}', '<span class="totalPages"></span>')
 
+  // Puppeteer's footerTemplate is its OWN isolated mini-document — it does
+  // not inherit the main page's <head>/<style>, so the fonts have to be
+  // embedded again here, not just once on the main template.
   return `
-    <div style="width:100%;font-family:'Archivo',sans-serif;font-size:11px;color:#5a686e;padding:0 56px;box-sizing:border-box;-webkit-print-color-adjust:exact;">
+    <style>${STIPT_PDF_FONT_CSS}</style>
+    <div style="width:100%;font-family:var(--font-body);font-size:11px;color:var(--steen-700, #575751);padding:0 56px;box-sizing:border-box;-webkit-print-color-adjust:exact;">
       <div style="display:flex;justify-content:flex-end;padding-bottom:6px;font-size:12px;">${escapeHtml(l.initials)}: ______</div>
-      <div style="border-top:2px solid #215968;padding-top:8px;display:flex;justify-content:space-between;align-items:baseline;font-weight:500;gap:16px;">
-        <div>${businessLine}${identityLine ? ` &middot; ${identityLine}` : ''}</div>
-        <div style="white-space:nowrap;">${pageOf}</div>
+      <div style="border-top:2px solid var(--primary, #0F766E);padding-top:8px;display:flex;justify-content:space-between;align-items:baseline;font-weight:500;gap:16px;">
+        <div>${businessLine}${identityLine ? ` &middot; <span style="font-family:var(--font-mono);">${identityLine}</span>` : ''}</div>
+        <div style="white-space:nowrap;font-family:var(--font-mono);">${pageOf}</div>
       </div>
     </div>
   `

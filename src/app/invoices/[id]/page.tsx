@@ -74,7 +74,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         {/* Title & client / from / details */}
         <div className="bg-white rounded-2xl border border-border p-5 mb-4">
           <div className="flex items-start justify-between gap-3 mb-3">
-            <h1 className="text-lg font-bold text-on-surface">
+            <h1 className="text-lg font-bold text-on-surface font-mono">
               {invoice.invoice_number ?? t('notSentYet')}
             </h1>
             <p className="text-xs text-muted shrink-0 mt-1">{formatDate(invoice.invoice_date, locale)}</p>

@@ -20,10 +20,10 @@ export const euro = (n: number) =>
 /** Fallback brand color when a contractor hasn't set one (or imported one) yet. */
 export const DEFAULT_PRIMARY = '#0F766E'
 
-export const INK   = '#1C1C1E'
-export const MUTED = '#7A7A7D'
-export const RULE  = '#E7E5E0'
-export const PANEL = '#FAFAF9'
+export const INK   = '#17201E'
+export const MUTED = '#575751'
+export const RULE  = '#DAD4C4'
+export const PANEL = '#F3ECDA'
 
 export function createPdfStyles(primary: string = DEFAULT_PRIMARY) {
   return StyleSheet.create({

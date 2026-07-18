@@ -41,12 +41,11 @@ export default async function InvoicesPage() {
       {/* Header — title + primary "New Invoice" action, matching the Quotes
           page pattern exactly (desktop sidebar and mobile bottom nav don't
           carry a New Invoice item; this button, plus the mobile-only FAB
-          below, are the only entry points). mt-12 on mobile clears the
-          fixed language-switcher pill pinned to the top-right of the
-          viewport — mobile has no dedicated top bar reserving that space
-          the way desktop's own header does. */}
-      <div className="flex items-center justify-between mb-6 mt-12 md:mt-0">
-        <h1 className="text-lg font-semibold text-on-surface">{t('title')}</h1>
+          below, are the only entry points). No extra top margin needed —
+          both the desktop header and the mobile one ((app)/layout.tsx) now
+          reserve that space themselves. */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-lg font-semibold text-on-surface font-display">{t('title')}</h1>
         <Link
           href="/invoices/new"
           className="h-11 px-4 inline-flex items-center gap-1.5 rounded-xl bg-teal-500 text-white text-sm font-semibold hover:bg-teal-700 active:bg-teal-700 active:scale-[0.98] transition"

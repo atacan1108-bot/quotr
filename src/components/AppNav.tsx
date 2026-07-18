@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
+import Logo from '@/components/Logo'
 
 const TAB_DEFS = [
   {
@@ -81,11 +82,8 @@ export default function AppNav() {
       {/* ── DESKTOP: left sidebar ── */}
       <aside className="hidden md:flex flex-col w-56 shrink-0 border-r border-border bg-white">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-5 h-16 border-b border-border">
-          <div className="w-8 h-8 rounded-lg bg-teal-500 flex items-center justify-center">
-            <span className="text-white text-sm font-bold">Q</span>
-          </div>
-          <span className="font-semibold text-on-surface tracking-tight">Quotr</span>
+        <div className="flex items-center px-5 h-16 border-b border-border">
+          <Logo />
         </div>
 
         {/* Nav items */}

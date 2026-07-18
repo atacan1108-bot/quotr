@@ -111,8 +111,8 @@ export default async function CashflowPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-2xl mx-auto px-4 pt-6 pb-10">
-      <div className="mb-6 mt-12 md:mt-0">
-        <h1 className="text-lg font-semibold text-on-surface">{t('title')}</h1>
+      <div className="mb-6">
+        <h1 className="text-lg font-semibold text-on-surface font-display">{t('title')}</h1>
       </div>
 
       {/* Month switcher */}
@@ -159,19 +159,19 @@ export default async function CashflowPage({ searchParams }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-white rounded-2xl border border-border p-4">
           <p className="text-xs text-muted font-medium uppercase tracking-wide mb-1">{t('invoiced')}</p>
-          <p className="text-lg font-bold text-on-surface">{formatEuro(invoicedTotal)}</p>
+          <p className="text-lg font-bold text-on-surface font-mono">{formatEuro(invoicedTotal)}</p>
         </div>
         <div className="bg-white rounded-2xl border border-border p-4">
           <p className="text-xs text-muted font-medium uppercase tracking-wide mb-1">{t('paid')}</p>
-          <p className="text-lg font-bold text-on-surface">{formatEuro(paidTotal)}</p>
+          <p className="text-lg font-bold text-on-surface font-mono">{formatEuro(paidTotal)}</p>
         </div>
         <div className="bg-white rounded-2xl border border-border p-4">
           <p className="text-xs text-muted font-medium uppercase tracking-wide mb-1">{t('outstanding')}</p>
-          <p className="text-lg font-bold text-teal-500">{formatEuro(outstandingTotal)}</p>
+          <p className="text-lg font-bold text-teal-500 font-mono">{formatEuro(outstandingTotal)}</p>
         </div>
         <div className="bg-white rounded-2xl border border-border p-4">
           <p className="text-xs text-muted font-medium uppercase tracking-wide mb-1">{t('overdue')}</p>
-          <p className={`text-lg font-bold ${overdueRows.length > 0 ? 'text-red-600' : 'text-on-surface'}`}>{formatEuro(overdueTotal)}</p>
+          <p className={`text-lg font-bold font-mono ${overdueRows.length > 0 ? 'text-red-600' : 'text-on-surface'}`}>{formatEuro(overdueTotal)}</p>
         </div>
       </div>
 
@@ -208,7 +208,7 @@ export default async function CashflowPage({ searchParams }: Props) {
                             {t('daysOverdue', { days: daysOverdue ?? 0 })}
                           </span>
                         )}
-                        <span className="text-xs text-muted">{invoice.invoice_number ?? t('notSentYet')}</span>
+                        <span className="text-xs text-muted font-mono">{invoice.invoice_number ?? t('notSentYet')}</span>
                       </div>
                       <p className="font-semibold text-on-surface truncate">{invoice.client_name}</p>
                       <p className="text-sm text-muted truncate mt-0.5">

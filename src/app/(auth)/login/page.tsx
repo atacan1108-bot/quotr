@@ -3,6 +3,7 @@
 import { useActionState } from 'react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
+import Logo from '@/components/Logo'
 import { loginAction } from './actions'
 
 export default function LoginPage() {
@@ -16,10 +17,7 @@ export default function LoginPage() {
         {/* Logo — links back to the marketing homepage, the only way back
             to it from here (there was previously no way back at all). */}
         <Link href="/" className="flex items-center justify-center mb-10">
-          <div className="w-12 h-12 rounded-xl bg-teal-500 flex items-center justify-center">
-            <span className="text-white text-xl font-bold tracking-tight">Q</span>
-          </div>
-          <span className="ml-3 text-2xl font-semibold text-on-surface tracking-tight">Quotr</span>
+          <Logo size="lg" />
         </Link>
 
         <h1 className="text-xl font-semibold text-on-surface mb-1">{t('welcomeBack')}</h1>

@@ -1,15 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #FAFAF9;
-  --foreground: #1C1C1E;
-
-  /* Stipt brand tokens — introduced for the marketing page
-     (src/components/marketing/MarketingHome.tsx). Additive only: nothing
-     above/below references these yet, so the portal's current look is
-     completely unaffected. Available globally so the portal can adopt
-     them later, per the rebrand plan — until then they're only actually
-     used inside .stipt-scoped marketing styles. */
+  /* Stipt brand tokens — the single source of truth for the whole app
+     (portal + marketing page). The portal's own theme tokens below
+     (--color-background, --color-teal-500, etc.) now resolve THROUGH
+     these, so every existing bg-surface / text-on-surface / bg-teal-500 /
+     border-border / text-muted usage across the app picks up the new
+     palette automatically — no per-component changes needed for the core
+     identity (background, text, borders, primary teal). */
   --diep-teal: #0F766E;
   --nacht-teal: #0A3C38;
   --teal-tint: #D6F2EC;
@@ -24,26 +22,33 @@
   --lijn: #DAD4C4;
   --succes: #1F8A5B;
   --fout: #C4472C;
+
+  --background: var(--papier);
+  --foreground: var(--inkt);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-surface: #FAFAF9;
-  --color-on-surface: #1C1C1E;
-  --color-border: #E5E5E3;
-  --color-muted: #6E7580;
-  --color-teal-100: #D6F2EC;
-  --color-teal-500: #0D9483;
-  --color-teal-700: #0B5A54;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface: var(--papier);
+  --color-surface-2: var(--papier-2);
+  --color-on-surface: var(--inkt);
+  --color-border: var(--lijn);
+  --color-muted: var(--steen-400);
+  --color-teal-100: var(--teal-tint);
+  --color-teal-500: var(--diep-teal);
+  --color-teal-700: var(--nacht-teal);
+  --color-oker: var(--oker);
+  --color-oker-tint: var(--oker-tint);
+  --font-sans: var(--font-hanken-grotesk);
+  --font-display: var(--font-space-grotesk);
+  --font-mono: var(--font-space-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-family: var(--font-hanken-grotesk), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
